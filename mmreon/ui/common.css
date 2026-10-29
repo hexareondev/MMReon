@@ -1,35 +1,48 @@
+/* MMReon — общая палитра и шрифты.
+   Две стороны Доты: победы в цвете Сил Света, поражения — Сил Тьмы, рамки — бронза интерфейса. */
 :root {
-  --bg: #0E1014;
-  --panel: #171A21;
-  --panel-2: #13161C;
-  --line: #22262F;
-  --line-soft: #1F232B;
-  --text: #E7EAF0;
-  --text-2: #C4CAD5;
-  --muted: #A3ABBA;
-  --accent: #E9A640;
-  --win: #4FC38A;
-  --loss: #EF6F5A;
-  --est: #F0C887;
-  --est-bg: #2A2113;
-  --est-line: #4A3818;
-  --x2: #C9B6F5;
-  --x2-bg: #241E35;
-  --x2-line: #3D3260;
-  /* Системные шрифты: окно работает без интернета */
+  --night: #12151C;        /* фон окна */
+  --stone: #1A1E27;        /* панели */
+  --stone-2: #222733;      /* приподнятые элементы */
+  --seam: #2C3240;         /* границы */
+  --bronze: #C9A36A;       /* рамки, акценты интерфейса */
+  --bronze-dim: #7A6544;
+  --radiant: #6FCF8E;      /* победа, рост рейтинга */
+  --radiant-deep: #1F3A2B;
+  --dire: #E8664A;         /* поражение, падение рейтинга */
+  --dire-deep: #3E1F19;
+  --pending: #E9C27A;      /* ещё не подтверждено */
+  --pending-deep: #352A16;
+  --x2: #C3A8F2;
+  --x2-deep: #2A2240;
+  --text: #ECE7DE;
+  --text-2: #C2BDB3;
+  --muted: #9A978F;
+
+  --display: Bahnschrift, "Segoe UI Variable Display", "Segoe UI", sans-serif;
   --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --mono: "Cascadia Mono", Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+html, body { margin: 0; background: var(--night); color: var(--text); font-family: var(--sans); font-size: 14px; }
 button { font: inherit; color: inherit; cursor: pointer; }
-.mono { font-family: var(--mono); }
-.win { color: var(--win); }
-.loss { color: var(--loss); }
-.est { color: var(--est); }
+.num { font-family: var(--display); font-variant-numeric: tabular-nums; font-stretch: condensed; }
+.win { color: var(--radiant); }
+.loss { color: var(--dire); }
+.est { color: var(--pending); }
 .muted { color: var(--muted); }
+:focus-visible { outline: 2px solid var(--bronze); outline-offset: 2px; }
 
-.stars { display: inline-flex; gap: 3px; vertical-align: middle; }
-.stars i { width: 7px; height: 7px; border-radius: 50%; background: #333946; display: block; }
-.stars i.on { background: var(--accent); }
+/* Медаль: иконка OpenDota со звёздами поверх, ореол цвета ранга. */
+.medal { position: relative; flex: none; display: grid; place-items: center; }
+.medal::before { content: ""; position: absolute; inset: -18%; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--tier) 55%, transparent), transparent 72%); }
+.medal img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.medal .fallback { position: relative; width: 82%; height: 82%; border-radius: 50%; display: grid; place-items: center;
+  background: var(--stone-2); border: 2px solid var(--tier); color: var(--tier);
+  font-family: var(--display); font-weight: 700; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .medal.fresh::before { animation: aura 1.6s ease-out 1; }
+  @keyframes aura { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+}

@@ -138,7 +138,10 @@ def build(tracker, dota_running: bool) -> dict:
             "estimate": s_est,
             "pending": len(pending),
             "doubles": sum(1 for m in session if is_double(m)),
+            "items": [_match_view(m, typical) for m in _session(matches)],
+            "started_at": (_session(matches) or [{}])[0].get("ended_at"),
         },
+        "last_hero": next((m.get("hero") for m in reversed(matches) if m.get("hero")), None),
         "week": {
             "delta": (value - week_base["value"]) if (value is not None and week_base) else None,
             "matches": len(week_matches),

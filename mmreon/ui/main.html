@@ -4,90 +4,134 @@
 <meta charset="utf-8">
 <title>MMReon</title>
 <link rel="stylesheet" href="common.css">
+<script src="ranks.js"></script>
 <style>
-  body { min-height: 100vh; }
-  .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 28px 32px; display: flex; flex-direction: column; gap: 18px; }
+  body { min-height: 100vh;
+    background:
+      radial-gradient(1200px 500px at 85% -10%, rgba(201,163,106,.07), transparent 60%),
+      var(--night); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 18px 26px 26px; display: flex; flex-direction: column; gap: 16px; }
 
-  .titlebar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; height: 44px;
-              background: var(--panel-2); border-bottom: 1px solid var(--line); }
-  .titlebar .drag { flex: 1; height: 100%; display: flex; align-items: center; padding-left: 16px;
-                    font-size: 13px; font-weight: 700; color: var(--muted); }
-  .titlebar button { width: 48px; height: 44px; border: 0; background: transparent; color: var(--muted);
-                     display: flex; align-items: center; justify-content: center; }
-  .titlebar button:hover { background: #222631; color: var(--text); }
-  .titlebar button.close:hover { background: #C4352B; color: #fff; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .medal-icon { position: relative; width: 96px; height: 96px; flex: none; }
-  .medal-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-  .medal-fallback { width: 96px; height: 96px; border-radius: 50%; flex: none; display: flex; align-items: center;
-                    justify-content: center; background: #262B35; border: 3px solid var(--accent);
-                    font-weight: 800; font-size: 24px; color: var(--est); }
-  .rating-row { display: flex; align-items: center; gap: 20px; }
-  .rating-row > div:last-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-  .logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: var(--text); pointer-events: none; }
-  .logo b { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: var(--bg);
-            display: flex; align-items: center; justify-content: center; font-size: 15px; }
-  .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Полоса заголовка */
+  .titlebar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; height: 40px;
+    background: rgba(18,21,28,.92); border-bottom: 1px solid var(--seam); backdrop-filter: blur(8px); }
+  .titlebar .drag { flex: 1; height: 100%; display: flex; align-items: center; gap: 10px; padding-left: 16px; }
+  .brand { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .5px; color: var(--text); pointer-events: none; }
+  .brand b { color: var(--bronze); font-weight: 700; }
+  .titlebar button { width: 46px; height: 40px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; }
+  .titlebar button:hover { background: var(--stone-2); color: var(--text); }
+  .titlebar button.close:hover { background: #B8352A; color: #fff; }
+
+  /* Шапка: медаль, рейтинг, арт последнего героя */
+  .hero { position: relative; overflow: hidden; border-radius: 22px; min-height: 210px;
+    background: linear-gradient(180deg, #1D2230, #171A23); border: 1px solid var(--seam);
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 28px; padding: 26px 30px; }
+  .hero::before { content: ""; position: absolute; inset: 0 0 0 auto; width: 62%; background: var(--art, none) right center / cover no-repeat;
+    opacity: .38; filter: saturate(.85);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 55%); mask-image: linear-gradient(90deg, transparent, #000 55%); }
+  .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(90deg, rgba(23,26,35,.96) 30%, rgba(23,26,35,.55) 70%, rgba(23,26,35,.75)); }
+  .hero > * { position: relative; z-index: 1; }
+  .rating-label { font-size: 13px; color: var(--muted); }
+  .rating { font-family: var(--display); font-stretch: condensed; font-weight: 700; font-size: 84px; line-height: .95;
+    letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .rank-line { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+  .rank-name { font-family: var(--display); font-size: 22px; font-weight: 600; color: var(--tier, var(--bronze)); }
+  .rank-next { font-size: 13px; color: var(--text-2); }
+  .track { position: relative; height: 8px; margin-top: 14px; max-width: 460px; border-radius: 4px; background: #2A2F3B; overflow: hidden; }
+  .track > div { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--bronze-dim), var(--tier, var(--bronze))); }
+  .rating-meta { display: flex; gap: 18px; margin-top: 10px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .status { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; align-self: start; }
   .pill { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; font-size: 13px;
-          background: var(--panel-2); border: 1px solid var(--line); color: var(--text-2); }
-  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot, var(--muted)); }
-  .pill.ok { --dot: var(--win); }
-  .pill.off { --dot: #5A6475; }
-  .pill.wait { --dot: var(--accent); background: var(--est-bg); border-color: var(--est-line); color: var(--est); }
+    background: rgba(18,21,28,.72); border: 1px solid var(--seam); color: var(--text-2); white-space: nowrap; }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--muted)); }
+  .pill.ok { --dot: var(--radiant); }
+  .pill.off { --dot: #5B6070; }
+  .pill.wait { --dot: var(--pending); color: var(--pending); border-color: #57461F; background: rgba(53,42,22,.85); white-space: normal; max-width: 260px; text-align: left; }
 
-  .cards { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 14px; }
-  @media (max-width: 860px) { .cards { grid-template-columns: 1fr 1fr; } .cards .main-card { grid-column: span 2; } }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 22px;
-          display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .label { font-size: 13px; color: var(--muted); font-weight: 600; }
-  .big { font-family: var(--mono); font-weight: 700; font-size: 52px; line-height: 1; }
-  .mid { font-family: var(--mono); font-weight: 700; font-size: 32px; line-height: 1.1; }
-  .row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-  .medal { font-size: 16px; color: var(--text-2); display: flex; align-items: center; gap: 10px; }
-  .bar { height: 6px; border-radius: 3px; background: #262B35; overflow: hidden; margin-top: 4px; }
-  .bar > div { height: 100%; background: var(--accent); }
-  .small { font-size: 13px; color: var(--muted); }
+  /* Сессия и неделя */
+  .duo { display: grid; grid-template-columns: 1.7fr 1fr; gap: 16px; }
+  .panel { background: var(--stone); border: 1px solid var(--seam); border-radius: 16px; padding: 18px 22px; min-width: 0; }
+  .panel h2 { margin: 0; font-family: var(--display); font-size: 17px; font-weight: 600; letter-spacing: .2px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .panel-head .muted { font-size: 13px; }
+  .figure { font-family: var(--display); font-stretch: condensed; font-weight: 700; font-size: 46px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .session-body { display: flex; align-items: center; gap: 22px; margin-top: 12px; }
+  .session-side { display: flex; flex-direction: column; gap: 4px; flex: none; }
+  .session-side .muted { font-size: 13px; }
+  .chain { display: flex; gap: 6px; flex-wrap: wrap; align-content: center; flex: 1; min-width: 0; }
+  .chip { position: relative; min-width: 52px; height: 44px; padding: 0 8px; border-radius: 8px; display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .chip.w { background: var(--radiant-deep); color: var(--radiant); }
+  .chip.l { background: var(--dire-deep); color: var(--dire); }
+  .chip.p { background: var(--pending-deep); color: var(--pending); outline: 1px dashed #6A5426; outline-offset: -1px; }
+  .chip.u { background: var(--stone-2); color: var(--muted); font-size: 13px; font-weight: 600; }
+  .chip .x2 { position: absolute; top: -6px; right: -4px; font-size: 10px; padding: 1px 4px; border-radius: 4px;
+    background: var(--x2-deep); color: var(--x2); border: 1px solid #4A3D72; }
+  .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
 
-  .chart-card { padding: 18px 22px 14px; }
-  .chart-head { display: flex; justify-content: space-between; align-items: baseline; }
-  h2 { margin: 0; font-size: 16px; font-weight: 700; }
-  svg.chart { width: 100%; height: 170px; display: block; }
-  .axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
-  .empty { padding: 28px 0; text-align: center; color: var(--muted); font-size: 14px; }
+  .split { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 14px; background: var(--stone-2); }
+  .split .w { background: var(--radiant); }
+  .split .l { background: var(--dire); }
+  .split-legend { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; }
 
-  .table-card { padding: 6px 0; }
-  .table-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 22px; }
-  .scroll { overflow-x: auto; }
-  .grid { display: grid; grid-template-columns: 96px minmax(170px, 2fr) 110px 100px 76px 64px 150px; gap: 12px;
-          align-items: center; padding: 10px 22px; min-width: 820px; }
-  .grid.head { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; padding-top: 4px; }
-  .grid.item { border-top: 1px solid var(--line-soft); font-size: 14px; }
-  .grid .r { text-align: right; justify-self: end; }
-  .hero { display: flex; align-items: center; gap: 10px; min-width: 0; }
-  .hero img, .hero .ph { width: 52px; height: 29px; border-radius: 5px; object-fit: cover; flex: none; background: #262B35; }
-  .hero .ph { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-2); }
-  .hero span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .delta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-  .delta .v { font-family: var(--mono); font-weight: 700; font-size: 15px; }
-  .tag { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 6px; white-space: nowrap; }
-  .tag.est { background: var(--est-bg); border: 1px solid var(--est-line); }
-  .tag.neutral { color: var(--muted); border: 1px solid var(--line); }
-  .x2 { min-width: 44px; height: 32px; border-radius: 8px; border: 1px dashed #3A4150; background: transparent;
-        color: #6E7787; font-size: 12px; font-weight: 700; }
-  .x2.on { border: 1px solid var(--x2-line); background: var(--x2-bg); color: var(--x2); }
-  .x2.manual { box-shadow: inset 0 -2px 0 var(--x2); }
-  .x2:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* График */
+  .chart-wrap { position: relative; margin-top: 10px; height: 190px; }
+  .chart-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .tick-label { position: absolute; left: 0; transform: translateY(-50%); font-size: 11px; color: var(--muted);
+    background: var(--stone); padding: 0 6px 0 0; }
+  .tick-label.medal-start { color: var(--bronze); font-weight: 600; }
+  .axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
 
-  footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  /* Матчи */
+  .matches { padding: 18px 0 8px; }
+  .matches .panel-head { padding: 0 22px 10px; }
+  .row { display: grid; grid-template-columns: 4px 92px minmax(0, 1.6fr) 104px 96px 56px minmax(150px, 1fr); gap: 14px;
+    align-items: center; padding: 8px 22px 8px 0; }
+  .row.head { font-size: 12px; color: var(--muted); padding-top: 2px; padding-bottom: 6px; }
+  .row.item { border-top: 1px solid #242936; }
+  .row.item:hover { background: rgba(255,255,255,.02); }
+  .edge { align-self: stretch; border-radius: 0 3px 3px 0; }
+  .edge.w { background: var(--radiant); }
+  .edge.l { background: var(--dire); }
+  .portrait { width: 92px; height: 52px; border-radius: 8px; overflow: hidden; background: var(--stone-2); display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; color: var(--text-2); }
+  .portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .who { min-width: 0; }
+  .who .name { font-family: var(--display); font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .when { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .result { font-weight: 600; }
+  .kda { font-family: var(--display); font-variant-numeric: tabular-nums; font-size: 15px; color: var(--text-2); }
+  .kda span { color: var(--muted); }
+  .x2btn { width: 46px; height: 32px; border-radius: 8px; border: 1px dashed #3A4050; background: transparent; color: #6F7282;
+    font-family: var(--display); font-weight: 700; font-size: 13px; }
+  .x2btn.on { border: 1px solid #4A3D72; background: var(--x2-deep); color: var(--x2); }
+  .x2btn.manual { box-shadow: inset 0 -2px 0 var(--x2); }
+  .delta { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+  .bar { flex: 1; max-width: 110px; height: 6px; border-radius: 3px; background: #262B37; position: relative; overflow: hidden; }
+  .bar > i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+  .bar > i.w { left: 0; background: var(--radiant); }
+  .bar > i.l { left: 0; background: var(--dire); }
+  .bar > i.p { left: 0; background: repeating-linear-gradient(90deg, var(--pending) 0 4px, transparent 4px 7px); }
+  .dv { font-family: var(--display); font-stretch: condensed; font-weight: 700; font-size: 22px; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  .tag { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+  .tag.p { background: var(--pending-deep); color: var(--pending); }
+  .tag.n { color: var(--muted); border: 1px solid var(--seam); }
+
+  footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 0 4px; }
   footer label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; color: var(--text-2); }
-  footer input { width: 18px; height: 18px; accent-color: var(--accent); }
-  .quit { min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); }
-  .quit:hover { border-color: #3A4150; color: var(--text); }
+  footer input { width: 18px; height: 18px; accent-color: var(--bronze); }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: auto 1fr; }
+    .status { grid-column: 1 / -1; align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+    .duo { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
 <div class="titlebar">
-  <div class="drag pywebview-drag-region"><span class="logo"><b aria-hidden="true">±</b>MMReon</span></div>
+  <div class="drag pywebview-drag-region"><span class="brand"><b>MMR</b>eon</span></div>
   <button id="btn-min" aria-label="Свернуть" title="Свернуть — трекер продолжит работать">
     <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.4"/></svg>
   </button>
@@ -95,195 +139,228 @@
     <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="1.4"/></svg>
   </button>
 </div>
-<div class="wrap">
-  <header>
-    <div class="pills" id="pills" aria-live="polite"></div>
-  </header>
 
-  <div class="cards">
-    <section class="card main-card" id="rating-card"></section>
-    <section class="card" id="session-card"></section>
-    <section class="card" id="week-card"></section>
+<div class="wrap">
+  <section class="hero" id="hero" aria-label="Текущий рейтинг"></section>
+
+  <div class="duo">
+    <section class="panel" id="session" aria-label="Сессия"></section>
+    <section class="panel" id="week" aria-label="Последние 7 дней"></section>
   </div>
 
-  <section class="card chart-card">
-    <div class="chart-head"><h2>Рейтинг за 30 дней</h2><span class="small" id="chart-range"></span></div>
+  <section class="panel">
+    <div class="panel-head"><h2>Рейтинг за 30 дней</h2><span class="muted" id="chart-range"></span></div>
     <div id="chart"></div>
   </section>
 
-  <section class="card table-card">
-    <div class="table-head"><h2>Матчи</h2><span class="small">×2 — жетон двойного рейтинга, нажмите, чтобы отметить вручную</span></div>
-    <div class="scroll">
-      <div class="grid head"><div>Время</div><div>Герой</div><div>Итог</div><div>У/С/П</div><div>Длит.</div><div>Жетон</div><div class="r">ИР</div></div>
-      <div id="matches"></div>
-    </div>
+  <section class="panel matches">
+    <div class="panel-head"><h2>Матчи</h2><span class="muted">Кнопка ×2 отмечает жетон двойного рейтинга</span></div>
+    <div class="row head"><div></div><div></div><div>Герой</div><div>Итог</div><div>У / С / П</div><div>Жетон</div><div style="text-align:right">Изменение рейтинга</div></div>
+    <div id="matches"></div>
   </section>
 
   <footer>
     <label><input type="checkbox" id="widget-toggle"> Показывать виджет в главном меню Доты</label>
-    <span>Сверните окно, чтобы трекер работал в фоне. Крестик — выход из MMReon.</span>
+    <span>Сверните окно, чтобы трекер работал в фоне. Крестик закрывает MMReon.</span>
   </footer>
 </div>
 
 <script>
-const CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/";
-const RANKS = "https://www.opendota.com/assets/images/dota2/rank_icons/";
-let lastJson = "";
+let lastJson = "", lastState = null, heroDrawn = "";
 
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const sign = n => n > 0 ? "+" + n : n < 0 ? "−" + Math.abs(n) : "0";
-const cls = n => n > 0 ? "win" : n < 0 ? "loss" : "muted";
-const pad = n => String(n).padStart(2, "0");
-const dur = s => s == null ? "—" : (s >= 3600 ? Math.floor(s/3600) + ":" + pad(Math.floor(s%3600/60)) : Math.floor(s/60)) + ":" + pad(s % 60);
+const dur = s => s == null ? "" : (s >= 3600 ? Math.floor(s / 3600) + ":" + pad(Math.floor(s % 3600 / 60)) : Math.floor(s / 60)) + ":" + pad(s % 60);
 function when(iso) {
   const d = new Date(iso), now = new Date();
   const t = pad(d.getHours()) + ":" + pad(d.getMinutes());
-  return d.toDateString() === now.toDateString() ? t : pad(d.getDate()) + "." + pad(d.getMonth() + 1) + " " + t;
-}
-const stars = n => '<span class="stars" aria-hidden="true">' + [1,2,3,4,5].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("") + "</span>";
-const SHORT = {"Рекрут":"Р","Страж":"С","Рыцарь":"Ры","Герой":"Г","Легенда":"Л","Властелин":"В","Божество":"Б","Титан":"Т"};
-function medalFallback(m, size) {
-  const [title, star] = m.name.split(" ");
-  return `<div class="medal-fallback" style="width:${size}px;height:${size}px;font-size:${Math.round(size/4)}px" aria-hidden="true">${(SHORT[title] || title[0]) + (star || "")}</div>`;
-}
-let medalBroken = false;   // иконки не загрузились (нет интернета) — дальше рисуем запасной значок
-function medalIcon(m, size) {
-  // Иконки медалей с сайта OpenDota: основа + звёзды поверх.
-  if (medalBroken) return medalFallback(m, size);
-  const n = m.index >= 7 ? 8 : m.index + 1;
-  const star = m.stars && n < 8 ? `<img src="${RANKS}rank_star_${m.stars}.png" alt="">` : "";
-  return `<div class="medal-icon" style="width:${size}px;height:${size}px" aria-hidden="true">
-    <img src="${RANKS}rank_icon_${n}.png" alt="" onerror="medalFail(this)">${star}</div>`;
-}
-function medalFail(img) {
-  medalBroken = true;
-  const box = img.closest(".medal-icon");
-  if (box) box.outerHTML = medalFallback(lastState.medal, parseInt(box.style.width, 10));
+  if (d.toDateString() === now.toDateString()) return "сегодня, " + t;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return "вчера, " + t;
+  return d.toLocaleDateString("ru-RU", {day: "numeric", month: "long"}) + ", " + t;
 }
 const initials = name => name.split(/[\s-]+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
-
-function renderPills(st) {
-  const p = [];
-  p.push(st.gsi ? '<div class="pill ok">Связь с Дотой есть</div>' : '<div class="pill off">Нет данных от Доты</div>');
-  if (st.dota_running) p.push(st.in_match ? '<div class="pill ok">Идёт матч</div>' : '<div class="pill ok">Главное меню</div>');
-  if (st.waiting_history && !st.in_match)
-    p.push(`<div class="pill wait">${st.has_rating ? "Откройте «Профиль → История» — запишу точное ИР" : "Откройте «Профиль → История» — запомню исходный рейтинг"}</div>`);
-  document.getElementById("pills").innerHTML = p.join("");
+function portrait(m, cls = "portrait") {
+  if (!m.hero_code) return `<div class="${cls}">?</div>`;
+  return `<div class="${cls}"><img src="${HEROES_URL}${esc(m.hero_code)}.png" alt="" onerror="this.parentNode.textContent='${esc(initials(m.hero))}'"></div>`;
 }
 
-function renderRating(s) {
-  const el = document.getElementById("rating-card");
+function renderHero(s) {
+  const el = document.getElementById("hero");
+  const st = s.status;
+  const pills = [];
+  pills.push(st.gsi ? '<div class="pill ok">Связь с Дотой есть</div>' : '<div class="pill off">Дота не отвечает</div>');
+  if (st.dota_running) pills.push(st.in_match ? '<div class="pill ok">Идёт матч</div>' : '<div class="pill ok">Главное меню</div>');
+  if (st.waiting_history && !st.in_match)
+    pills.push(`<div class="pill wait">${st.has_rating ? "Откройте «Профиль → История», чтобы записать точное изменение" : "Откройте «Профиль → История», чтобы запомнить исходный рейтинг"}</div>`);
+  const status = `<div class="status" aria-live="polite">${pills.join("")}</div>`;
+  el.style.setProperty("--art", s.last_hero ? `url("${HEROES_URL}${s.last_hero}.png")` : "none");
+
   if (!s.rating) {
-    el.innerHTML = '<div class="label">Текущий рейтинг</div><div class="big muted">—</div><div class="small">Откройте в Доте «Профиль → История», и трекер прочитает рейтинг</div>';
+    el.innerHTML = `<div class="medal" style="width:132px;height:132px;--tier:var(--bronze)"><div class="fallback" style="font-size:40px">?</div></div>
+      <div><div class="rating-label">Рейтинг</div><div class="rating muted">—</div>
+      <div class="rating-meta">Трекер прочитает рейтинг, как только вы откроете в Доте «Профиль → История»</div></div>${status}`;
     return;
   }
   const m = s.medal, r = s.rating;
-  const next = m.to_next != null ? `${m.to_next} до следующей звезды (${esc(m.next_name)})` : "";
-  const conf = r.confidence != null ? ` · уверенность ${r.confidence}%` : "";
+  const tier = TIER_COLORS[m.index];
+  el.style.setProperty("--tier", tier);
+  const next = m.to_next != null ? `ещё ${m.to_next} до звания ${esc(m.next_name)}` : "высшее звание";
+  const fresh = heroDrawn !== r.value + m.name ? " fresh" : "";
+  heroDrawn = r.value + m.name;
   el.innerHTML = `
-    <div class="rating-row">
-      ${medalIcon(m, 96)}
-      <div>
-        <div class="label">Текущий рейтинг</div>
-        <div class="row"><div class="big">${r.value.toLocaleString("ru-RU")}</div>
-          <div class="medal">${esc(m.name)} ${m.stars ? stars(m.stars) : ""}</div></div>
-        <div class="bar" role="img" aria-label="${esc(next)}"><div style="width:${Math.round(m.progress*100)}%"></div></div>
-        <div class="small">${next}${conf} · прочитано ${when(r.read_at)}</div>
+    ${medalHTML(m, 132).replace('class="medal"', 'class="medal' + fresh + '"')}
+    <div>
+      <div class="rating-label">Рейтинг</div>
+      <div class="rating">${r.value.toLocaleString("ru-RU")}</div>
+      <div class="rank-line"><span class="rank-name">${esc(m.name)}</span><span class="rank-next">${next}</span></div>
+      <div class="track" role="img" aria-label="Прогресс до следующей звезды: ${Math.round(m.progress * 100)}%"><div style="width:${Math.max(3, Math.round(m.progress * 100))}%"></div></div>
+      <div class="rating-meta">
+        ${r.confidence != null ? `<span>Уверенность в ранге ${r.confidence}%</span>` : ""}
+        <span>Обновлено ${when(r.read_at)}</span>
       </div>
-    </div>`;
+    </div>
+    ${status}`;
+}
+
+function chipHTML(m) {
+  const x2 = m.double ? '<span class="x2">×2</span>' : "";
+  const title = `${esc(m.hero)}, ${m.won ? "победа" : "поражение"}`;
+  if (m.status === "exact") return `<div class="chip ${m.delta >= 0 ? "w" : "l"}" title="${title}">${sign(m.delta)}${x2}</div>`;
+  if (m.status === "pending") return `<div class="chip p" title="${title}, ждёт «Истории»">≈${sign(m.estimate)}${x2}</div>`;
+  if (m.status === "group") return `<div class="chip ${m.won ? "w" : "l"}" title="${title}, известна только сумма">${m.won ? "П" : "Пр"}${x2}</div>`;
+  return `<div class="chip u" title="${title}, без рейтинга">${m.won ? "П" : "Пр"}</div>`;
 }
 
 function renderSession(s) {
-  const se = s.session;
+  const se = s.session, el = document.getElementById("session");
+  if (!se.items.length) {
+    el.innerHTML = `<div class="panel-head"><h2>Сессия</h2></div>
+      <div class="empty" style="margin-top:12px">Новая сессия начнётся с первого матча. Перерыв больше трёх часов закрывает сессию.</div>`;
+    return;
+  }
   const total = se.delta + se.estimate;
-  const value = se.pending
-    ? `<div class="mid est">≈ ${sign(total)}</div>`
-    : `<div class="mid ${cls(se.delta)}">${sign(se.delta)}</div>`;
-  const bits = [`<span class="win">${se.wins} побед</span> · <span class="loss">${se.losses} пораж.</span>`];
-  if (se.doubles) bits.push(`жетонов ×2: ${se.doubles}`);
-  if (se.pending) bits.push(`<span class="est">ждёт «Истории»: ${se.pending}</span>`);
-  document.getElementById("session-card").innerHTML =
-    `<div class="label">За сессию</div>${value}<div class="small">${bits.join(" · ")}</div>`;
+  const figure = se.pending ? `<div class="figure est">≈${sign(total)}</div>` : `<div class="figure ${tone(se.delta)}">${sign(se.delta)}</div>`;
+  const record = `<span class="win">${se.wins} ${plural(se.wins, "победа", "победы", "побед")}</span>, <span class="loss">${se.losses} ${plural(se.losses, "поражение", "поражения", "поражений")}</span>`;
+  const extra = se.pending ? `<div class="est" style="font-size:13px">Ждёт «Истории»: ${se.pending}</div>` : "";
+  el.innerHTML = `
+    <div class="panel-head"><h2>Сессия</h2><span class="muted">с ${new Date(se.started_at).toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"})}</span></div>
+    <div class="session-body">
+      <div class="session-side">${figure}<div class="muted">${record}</div>${extra}</div>
+      <div class="chain" aria-label="Матчи сессии по порядку">${se.items.map(chipHTML).join("")}</div>
+    </div>`;
 }
 
 function renderWeek(s) {
-  const w = s.week;
-  const v = w.delta == null ? '<div class="mid muted">—</div>' : `<div class="mid ${cls(w.delta)}">${sign(w.delta)}</div>`;
-  const info = w.matches ? `${w.matches} матчей · винрейт ${w.winrate}%` : "Матчей пока нет";
-  document.getElementById("week-card").innerHTML = `<div class="label">За 7 дней</div>${v}<div class="small">${info}</div>`;
+  const w = s.week, el = document.getElementById("week");
+  const figure = w.delta == null ? '<div class="figure muted">—</div>' : `<div class="figure ${tone(w.delta)}">${sign(w.delta)}</div>`;
+  let split = "";
+  if (w.matches) {
+    const wins = Math.round(w.matches * w.winrate / 100), losses = w.matches - wins;
+    split = `<div class="split" role="img" aria-label="Побед ${wins}, поражений ${losses}">
+        <div class="w" style="width:${w.winrate}%"></div><div class="l" style="width:${100 - w.winrate}%"></div></div>
+      <div class="split-legend"><span class="win">${wins} ${plural(wins, "победа", "победы", "побед")}</span><span class="muted">винрейт ${w.winrate}%</span><span class="loss">${losses} ${plural(losses, "поражение", "поражения", "поражений")}</span></div>`;
+  } else {
+    split = '<div class="empty" style="margin-top:14px">За неделю рейтинговых матчей нет</div>';
+  }
+  el.innerHTML = `<div class="panel-head"><h2>7 дней</h2><span class="muted">${w.matches} ${plural(w.matches, "матч", "матча", "матчей")}</span></div>
+    <div style="margin-top:12px">${figure}</div>${split}`;
 }
 
 function renderChart(points) {
-  const box = document.getElementById("chart");
-  const range = document.getElementById("chart-range");
+  const box = document.getElementById("chart"), range = document.getElementById("chart-range");
   if (points.length < 2) {
-    box.innerHTML = '<div class="empty">График появится после первых матчей с точным ИР</div>';
+    box.innerHTML = '<div class="empty" style="padding:30px 0">График появится после первых матчей с точным изменением рейтинга</div>';
     range.textContent = "";
     return;
   }
+  const W = Math.max(box.clientWidth, 300), H = 190, padL = 92, padR = 8, padT = 10, padB = 10;
   const t = points.map(p => new Date(p.at).getTime()), v = points.map(p => p.value);
   const t0 = Math.min(...t), t1 = Math.max(Date.now(), ...t);
-  const lo = Math.min(...v) - 15, hi = Math.max(...v) + 15;
-  const X = x => ((x - t0) / Math.max(t1 - t0, 1)) * 1000, Y = y => 160 - ((y - lo) / (hi - lo)) * 150;
+  // Не меньше ~160 MMR по высоте, чтобы были видны соседние звёзды.
+  const vmin = Math.min(...v), vmax = Math.max(...v);
+  const extra = Math.max(20, (160 - (vmax - vmin)) / 2);
+  const lo = vmin - extra, hi = vmax + extra;
+  const X = x => padL + ((x - t0) / Math.max(t1 - t0, 1)) * (W - padL - padR);
+  const Y = y => padT + (1 - (y - lo) / (hi - lo)) * (H - padT - padB);
+
+  // Границы звёзд: 154 MMR (у Божества 160), начала медалей подписаны бронзой.
+  const ticks = [];
+  for (let idx = 0; idx < 7; idx++) {
+    const step = idx === 6 ? 160 : 154;
+    for (let k = 0; k < 5; k++) {
+      const at = idx * 770 + k * step;
+      if (at > lo && at < hi) ticks.push({at, label: `${MEDAL_NAMES[idx]} ${k + 1}`, start: k === 0});
+    }
+  }
   let d = "";
-  points.forEach((p, i) => {   // ступеньки: рейтинг меняется скачком после матча
-    const x = X(t[i]).toFixed(1), y = Y(v[i]).toFixed(1);
-    d += i === 0 ? `M${x},${y}` : `H${x}V${y}`;
-  });
+  points.forEach((p, i) => { d += i === 0 ? `M${X(t[i]).toFixed(1)},${Y(v[i]).toFixed(1)}` : `H${X(t[i]).toFixed(1)}V${Y(v[i]).toFixed(1)}`; });
   d += `H${X(t1).toFixed(1)}`;
-  const grid = [0.25, 0.5, 0.75].map(f => `<line x1="0" x2="1000" y1="${10 + 150*f}" y2="${10 + 150*f}" stroke="#22262F"/>`).join("");
-  box.innerHTML = `<svg class="chart" viewBox="0 0 1000 170" preserveAspectRatio="none" role="img"
-      aria-label="Рейтинг от ${v[0]} до ${v[v.length-1]}">${grid}
-      <path d="${d}" fill="none" stroke="#E9A640" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>
-    <div class="axis"><span>${when(points[0].at)}</span><span>сейчас</span></div>`;
-  range.textContent = `${Math.min(...v)} – ${Math.max(...v)}`;
+  const area = `${d}V${H - padB}H${X(t0).toFixed(1)}Z`;
+  const lines = ticks.map(tk => `<line x1="${padL}" x2="${W - padR}" y1="${Y(tk.at).toFixed(1)}" y2="${Y(tk.at).toFixed(1)}"
+      stroke="${tk.start ? "#7A6544" : "#2C3240"}" stroke-dasharray="${tk.start ? "0" : "3 5"}"/>`).join("");
+  const dots = points.slice(1).map((p, i) => {
+    const up = p.value >= points[i].value;
+    return `<circle cx="${X(t[i + 1]).toFixed(1)}" cy="${Y(p.value).toFixed(1)}" r="3.5" fill="${up ? "#6FCF8E" : "#E8664A"}" stroke="#1A1E27" stroke-width="2"/>`;
+  }).join("");
+  const labels = ticks.map(tk => `<span class="tick-label${tk.start ? " medal-start" : ""}" style="top:${Y(tk.at).toFixed(1)}px">${tk.label}</span>`).join("");
+  const last = v[v.length - 1];
+  box.innerHTML = `<div class="chart-wrap" role="img" aria-label="Рейтинг за 30 дней: от ${v[0]} до ${last}">
+      <svg viewBox="0 0 ${W} ${H}" aria-hidden="true">
+        <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#C9A36A" stop-opacity=".28"/><stop offset="1" stop-color="#C9A36A" stop-opacity="0"/></linearGradient></defs>
+        ${lines}<path d="${area}" fill="url(#fill)"/>
+        <path d="${d}" fill="none" stroke="#C9A36A" stroke-width="2.5" stroke-linejoin="round"/>${dots}
+      </svg>${labels}</div>
+    <div class="axis" style="padding-left:${padL}px"><span>${when(points[0].at)}</span><span>сейчас</span></div>`;
+  range.textContent = `от ${Math.min(...v)} до ${Math.max(...v)}`;
 }
 
 function deltaCell(m) {
-  if (m.status === "exact") return `<span class="v ${cls(m.delta)}">${sign(m.delta)}</span>`;
-  if (m.status === "pending") return `<span class="tag est est">примерно</span><span class="v est">≈ ${sign(m.estimate)}</span>`;
-  if (m.status === "group") return `<span class="tag neutral" title="Несколько матчей подряд без открытия «Истории»">сумма</span><span class="v ${cls(m.group_delta)}">${sign(m.group_delta)}</span>`;
-  if (m.status === "unrated") return `<span class="tag neutral">без рейтинга</span>`;
-  return "—";
+  const scale = x => Math.min(100, Math.round(Math.abs(x) / 70 * 100));
+  if (m.status === "exact")
+    return `<div class="bar" aria-hidden="true"><i class="${m.delta >= 0 ? "w" : "l"}" style="width:${scale(m.delta)}%"></i></div><span class="dv ${tone(m.delta)}">${sign(m.delta)}</span>`;
+  if (m.status === "pending")
+    return `<span class="tag p">ждёт «Истории»</span><span class="dv est">≈${sign(m.estimate)}</span>`;
+  if (m.status === "group")
+    return `<span class="tag n" title="Несколько матчей подряд без открытия «Истории»">сумма нескольких матчей</span><span class="dv ${tone(m.group_delta)}">${sign(m.group_delta)}</span>`;
+  if (m.status === "unrated") return `<span class="tag n">без рейтинга</span>`;
+  return "";
 }
 
 function renderMatches(list) {
   const box = document.getElementById("matches");
   if (!list.length) {
-    box.innerHTML = '<div class="empty">Сыграйте матч — он появится здесь сразу после падения трона</div>';
+    box.innerHTML = '<div class="empty" style="padding:18px 22px">Сыграйте матч: он появится здесь сразу после падения трона.</div>';
     return;
   }
   box.innerHTML = list.map(m => {
-    const img = m.hero_code
-      ? `<img src="${CDN}${esc(m.hero_code)}.png" alt="" onerror="this.outerHTML='<div class=&quot;ph&quot;>${esc(initials(m.hero))}</div>'">`
-      : `<div class="ph">?</div>`;
+    const res = m.won ? "w" : "l";
     const x2title = m.double_manual === null ? (m.double ? "Определено автоматически. Нажмите, чтобы изменить" : "Нажмите, если применяли жетон")
                                              : "Отмечено вручную. Нажмите, чтобы изменить";
     const x2 = m.status === "unrated" ? "" :
-      `<button class="x2 ${m.double ? "on" : ""} ${m.double_manual !== null ? "manual" : ""}" data-id="${esc(m.id)}"
-        aria-pressed="${m.double}" title="${x2title}" aria-label="Жетон двойного рейтинга">×2</button>`;
-    return `<div class="grid item">
-      <div class="mono muted" style="font-size:13px">${when(m.ended_at)}</div>
-      <div class="hero">${img}<span>${esc(m.hero)}</span></div>
-      <div class="${m.won ? "win" : "loss"}" style="font-weight:600">${m.won ? "Победа" : "Поражение"}</div>
-      <div class="mono" style="font-size:13px;color:var(--text-2)">${esc(m.kda)}</div>
-      <div class="mono muted" style="font-size:13px">${dur(m.duration_sec)}</div>
+      `<button class="x2btn ${m.double ? "on" : ""} ${m.double_manual !== null ? "manual" : ""}" data-id="${esc(m.id)}"
+         aria-pressed="${m.double}" title="${x2title}" aria-label="Жетон двойного рейтинга">×2</button>`;
+    const [k, de, a] = m.kda.split("/");
+    return `<div class="row item">
+      <div class="edge ${res}"></div>
+      ${portrait(m)}
+      <div class="who"><div class="name">${esc(m.hero)}</div><div class="when">${when(m.ended_at)}${m.duration_sec != null ? ", " + dur(m.duration_sec) : ""}</div></div>
+      <div class="result ${m.won ? "win" : "loss"}">${m.won ? "Победа" : "Поражение"}</div>
+      <div class="kda">${k}<span> / </span>${de}<span> / </span>${a}</div>
       <div>${x2}</div>
-      <div class="delta r">${deltaCell(m)}</div>
+      <div class="delta">${deltaCell(m)}</div>
     </div>`;
   }).join("");
 }
 
-let lastState = null;
 function render(s) {
   lastState = s;
-  renderPills(s.status);
-  renderRating(s);
+  renderHero(s);
   renderSession(s);
   renderWeek(s);
   renderChart(s.chart);
   renderMatches(s.matches);
 }
+function onMedalIconsBroken() { if (lastState) render(lastState); }
 
 async function tick() {
   try {
@@ -294,7 +371,7 @@ async function tick() {
 }
 
 document.getElementById("matches").addEventListener("click", async e => {
-  const b = e.target.closest(".x2");
+  const b = e.target.closest(".x2btn");
   if (!b) return;
   await pywebview.api.toggle_double(b.dataset.id);
   tick();
@@ -302,6 +379,7 @@ document.getElementById("matches").addEventListener("click", async e => {
 document.getElementById("btn-close").addEventListener("click", () => pywebview.api.quit());
 document.getElementById("btn-min").addEventListener("click", () => pywebview.api.minimize());
 document.getElementById("widget-toggle").addEventListener("change", e => pywebview.api.set_widget_enabled(e.target.checked));
+window.addEventListener("resize", () => { if (lastState) renderChart(lastState.chart); });
 
 let started = false;
 async function init() {

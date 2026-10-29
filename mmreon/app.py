@@ -12,7 +12,7 @@ from .screen import WINDOW_TITLE, window_status
 UI_DIR = Path(__file__).resolve().parent / "ui"
 MAIN_TITLE = "MMReon"
 WIDGET_TITLE = "MMReon · виджет"
-WIDGET_SIZE = (300, 64)
+WIDGET_SIZE = (340, 64)
 
 
 class Api:
