@@ -18,6 +18,12 @@ def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def is_double(m: dict) -> bool:
+    """Жетон ×2: ручная отметка важнее автоматической."""
+    manual = m.get("double_manual")
+    return bool(m.get("double")) if manual is None else manual
+
+
 def _fmt(delta: int) -> str:
     return f"+{delta}" if delta > 0 else str(delta)
 
@@ -29,13 +35,18 @@ class Tracker:
         self.cfg = cfg
         self.log = log
         self.in_match = False
+        self.last_gsi_at = None         # time.time() последнего пакета от Доты
         self._candidate = None          # прошлое прочтение, ждём подтверждения вторым кадром
+        self._black_count = 0
         self._warned_black = False
         self._stop = threading.Event()
 
     # ---------- GSI ----------
 
     def on_gsi(self, payload: dict):
+        if self.last_gsi_at is None:
+            self.log("[GSI] связь с Дотой есть")
+        self.last_gsi_at = time.time()
         game = payload.get("map")
         if not game:
             self.in_match = False       # главное меню: в пакете нет раздела map
@@ -94,10 +105,13 @@ class Tracker:
         if frame is None:
             return None
         if frame.mean() < 3.0:
-            if not self._warned_black:
+            # Одиночный чёрный кадр бывает при переключении окон — предупреждаем, только если он держится.
+            self._black_count += 1
+            if self._black_count >= 5 and not self._warned_black:
                 self.log("[экран] кадр чёрный — переключите Доту в режим «Оконный без рамки»")
                 self._warned_black = True
             return None
+        self._black_count = 0
         reading = ocr.read(frame)
         if not reading:
             self._candidate = None
@@ -116,6 +130,9 @@ class Tracker:
             prev = self.store.rating
             pending = self.store.pending()
             new_state = {"value": rating, "confidence": confidence, "read_at": _now()}
+            history = self.store.data.setdefault("history", [])
+            if not history or history[-1]["value"] != rating:
+                history.append({"value": rating, "at": new_state["read_at"]})
 
             if prev is None:
                 self.store.rating = new_state
@@ -139,6 +156,8 @@ class Tracker:
                     m["status"] = "unrated"
                     self.log(f"[рейтинг] {m['match_id']}: рейтинг не изменился — нерейтинговая игра")
                 elif abs(delta) > self.cfg["max_delta"] or (delta > 0) != m["won"]:
+                    if history and history[-1]["value"] == rating:
+                        history.pop()
                     self.log(f"[рейтинг] прочитано {rating}, изменение {_fmt(delta)} не сходится "
                              f"с результатом матча — не записываю, проверю ещё раз")
                     return
@@ -163,9 +182,23 @@ class Tracker:
         m.update(status="exact", delta=delta, rating_before=before, rating_after=after,
                  confidence=confidence, double=abs(delta) >= self._typical() * DOUBLE_FACTOR)
 
+    def toggle_double(self, match_id: str) -> bool | None:
+        """Ручная отметка жетона ×2: авто → да → нет → авто."""
+        with self.store.lock:
+            m = self.store.find(match_id)
+            if not m:
+                return None
+            cur = m.get("double_manual")
+            m["double_manual"] = True if cur is None else (False if cur else None)
+            self.store.save()
+            return m["double_manual"]
+
+    def typical(self) -> float:
+        return self._typical()
+
     def _typical(self) -> float:
         recent = [abs(m["delta"]) for m in self.store.matches
-                  if m["status"] == "exact" and not m.get("double")][-30:]
+                  if m["status"] == "exact" and not is_double(m)][-30:]
         return statistics.median(recent) if len(recent) >= 5 else TYPICAL_DELTA
 
     @staticmethod

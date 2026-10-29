@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>MMReon</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  body { min-height: 100vh; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 28px 32px; display: flex; flex-direction: column; gap: 18px; }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; }
+  .logo b { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--bg);
+            display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; font-size: 13px;
+          background: var(--panel-2); border: 1px solid var(--line); color: var(--text-2); }
+  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot, var(--muted)); }
+  .pill.ok { --dot: var(--win); }
+  .pill.off { --dot: #5A6475; }
+  .pill.wait { --dot: var(--accent); background: var(--est-bg); border-color: var(--est-line); color: var(--est); }
+
+  .cards { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 860px) { .cards { grid-template-columns: 1fr 1fr; } .cards .main-card { grid-column: span 2; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 22px;
+          display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .label { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .big { font-family: var(--mono); font-weight: 700; font-size: 52px; line-height: 1; }
+  .mid { font-family: var(--mono); font-weight: 700; font-size: 32px; line-height: 1.1; }
+  .row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .medal { font-size: 16px; color: var(--text-2); display: flex; align-items: center; gap: 10px; }
+  .bar { height: 6px; border-radius: 3px; background: #262B35; overflow: hidden; margin-top: 4px; }
+  .bar > div { height: 100%; background: var(--accent); }
+  .small { font-size: 13px; color: var(--muted); }
+
+  .chart-card { padding: 18px 22px 14px; }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; }
+  h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  svg.chart { width: 100%; height: 170px; display: block; }
+  .axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .empty { padding: 28px 0; text-align: center; color: var(--muted); font-size: 14px; }
+
+  .table-card { padding: 6px 0; }
+  .table-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 22px; }
+  .scroll { overflow-x: auto; }
+  .grid { display: grid; grid-template-columns: 96px minmax(170px, 2fr) 110px 100px 76px 64px 150px; gap: 12px;
+          align-items: center; padding: 10px 22px; min-width: 820px; }
+  .grid.head { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; padding-top: 4px; }
+  .grid.item { border-top: 1px solid var(--line-soft); font-size: 14px; }
+  .grid .r { text-align: right; justify-self: end; }
+  .hero { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .hero img, .hero .ph { width: 52px; height: 29px; border-radius: 5px; object-fit: cover; flex: none; background: #262B35; }
+  .hero .ph { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-2); }
+  .hero span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .delta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .delta .v { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+  .tag { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 6px; white-space: nowrap; }
+  .tag.est { background: var(--est-bg); border: 1px solid var(--est-line); }
+  .tag.neutral { color: var(--muted); border: 1px solid var(--line); }
+  .x2 { min-width: 44px; height: 32px; border-radius: 8px; border: 1px dashed #3A4150; background: transparent;
+        color: #6E7787; font-size: 12px; font-weight: 700; }
+  .x2.on { border: 1px solid var(--x2-line); background: var(--x2-bg); color: var(--x2); }
+  .x2.manual { box-shadow: inset 0 -2px 0 var(--x2); }
+  .x2:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  footer label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; color: var(--text-2); }
+  footer input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .quit { min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); }
+  .quit:hover { border-color: #3A4150; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><b aria-hidden="true">±</b>MMReon</div>
+    <div class="pills" id="pills" aria-live="polite"></div>
+  </header>
+
+  <div class="cards">
+    <section class="card main-card" id="rating-card"></section>
+    <section class="card" id="session-card"></section>
+    <section class="card" id="week-card"></section>
+  </div>
+
+  <section class="card chart-card">
+    <div class="chart-head"><h2>Рейтинг за 30 дней</h2><span class="small" id="chart-range"></span></div>
+    <div id="chart"></div>
+  </section>
+
+  <section class="card table-card">
+    <div class="table-head"><h2>Матчи</h2><span class="small">×2 — жетон двойного рейтинга, нажмите, чтобы отметить вручную</span></div>
+    <div class="scroll">
+      <div class="grid head"><div>Время</div><div>Герой</div><div>Итог</div><div>У/С/П</div><div>Длит.</div><div>Жетон</div><div class="r">ИР</div></div>
+      <div id="matches"></div>
+    </div>
+  </section>
+
+  <footer>
+    <label><input type="checkbox" id="widget-toggle"> Показывать виджет в главном меню Доты</label>
+    <span>Закрытие окна сворачивает MMReon — трекер продолжает работать</span>
+    <button class="quit" id="quit">Выйти из MMReon</button>
+  </footer>
+</div>
+
+<script>
+const CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/";
+let lastJson = "";
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sign = n => n > 0 ? "+" + n : n < 0 ? "−" + Math.abs(n) : "0";
+const cls = n => n > 0 ? "win" : n < 0 ? "loss" : "muted";
+const pad = n => String(n).padStart(2, "0");
+const dur = s => s == null ? "—" : (s >= 3600 ? Math.floor(s/3600) + ":" + pad(Math.floor(s%3600/60)) : Math.floor(s/60)) + ":" + pad(s % 60);
+function when(iso) {
+  const d = new Date(iso), now = new Date();
+  const t = pad(d.getHours()) + ":" + pad(d.getMinutes());
+  return d.toDateString() === now.toDateString() ? t : pad(d.getDate()) + "." + pad(d.getMonth() + 1) + " " + t;
+}
+const stars = n => '<span class="stars" aria-hidden="true">' + [1,2,3,4,5].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("") + "</span>";
+const initials = name => name.split(/[\s-]+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+function renderPills(st) {
+  const p = [];
+  p.push(st.gsi ? '<div class="pill ok">Связь с Дотой есть</div>' : '<div class="pill off">Нет данных от Доты</div>');
+  if (st.dota_running) p.push(st.in_match ? '<div class="pill ok">Идёт матч</div>' : '<div class="pill ok">Главное меню</div>');
+  if (st.waiting_history && !st.in_match)
+    p.push(`<div class="pill wait">${st.has_rating ? "Откройте «Профиль → История» — запишу точное ИР" : "Откройте «Профиль → История» — запомню исходный рейтинг"}</div>`);
+  document.getElementById("pills").innerHTML = p.join("");
+}
+
+function renderRating(s) {
+  const el = document.getElementById("rating-card");
+  if (!s.rating) {
+    el.innerHTML = '<div class="label">Текущий рейтинг</div><div class="big muted">—</div><div class="small">Откройте в Доте «Профиль → История», и трекер прочитает рейтинг</div>';
+    return;
+  }
+  const m = s.medal, r = s.rating;
+  const next = m.to_next != null ? `${m.to_next} до следующей звезды (${esc(m.next_name)})` : "";
+  const conf = r.confidence != null ? ` · уверенность ${r.confidence}%` : "";
+  el.innerHTML = `
+    <div class="label">Текущий рейтинг</div>
+    <div class="row"><div class="big">${r.value.toLocaleString("ru-RU")}</div>
+      <div class="medal">${esc(m.name)} ${m.stars ? stars(m.stars) : ""}</div></div>
+    <div class="bar" role="img" aria-label="${esc(next)}"><div style="width:${Math.round(m.progress*100)}%"></div></div>
+    <div class="small">${next}${conf} · прочитано ${when(r.read_at)}</div>`;
+}
+
+function renderSession(s) {
+  const se = s.session;
+  const total = se.delta + se.estimate;
+  const value = se.pending
+    ? `<div class="mid est">≈ ${sign(total)}</div>`
+    : `<div class="mid ${cls(se.delta)}">${sign(se.delta)}</div>`;
+  const bits = [`<span class="win">${se.wins} побед</span> · <span class="loss">${se.losses} пораж.</span>`];
+  if (se.doubles) bits.push(`жетонов ×2: ${se.doubles}`);
+  if (se.pending) bits.push(`<span class="est">ждёт «Истории»: ${se.pending}</span>`);
+  document.getElementById("session-card").innerHTML =
+    `<div class="label">За сессию</div>${value}<div class="small">${bits.join(" · ")}</div>`;
+}
+
+function renderWeek(s) {
+  const w = s.week;
+  const v = w.delta == null ? '<div class="mid muted">—</div>' : `<div class="mid ${cls(w.delta)}">${sign(w.delta)}</div>`;
+  const info = w.matches ? `${w.matches} матчей · винрейт ${w.winrate}%` : "Матчей пока нет";
+  document.getElementById("week-card").innerHTML = `<div class="label">За 7 дней</div>${v}<div class="small">${info}</div>`;
+}
+
+function renderChart(points) {
+  const box = document.getElementById("chart");
+  const range = document.getElementById("chart-range");
+  if (points.length < 2) {
+    box.innerHTML = '<div class="empty">График появится после первых матчей с точным ИР</div>';
+    range.textContent = "";
+    return;
+  }
+  const t = points.map(p => new Date(p.at).getTime()), v = points.map(p => p.value);
+  const t0 = Math.min(...t), t1 = Math.max(Date.now(), ...t);
+  const lo = Math.min(...v) - 15, hi = Math.max(...v) + 15;
+  const X = x => ((x - t0) / Math.max(t1 - t0, 1)) * 1000, Y = y => 160 - ((y - lo) / (hi - lo)) * 150;
+  let d = "";
+  points.forEach((p, i) => {   // ступеньки: рейтинг меняется скачком после матча
+    const x = X(t[i]).toFixed(1), y = Y(v[i]).toFixed(1);
+    d += i === 0 ? `M${x},${y}` : `H${x}V${y}`;
+  });
+  d += `H${X(t1).toFixed(1)}`;
+  const grid = [0.25, 0.5, 0.75].map(f => `<line x1="0" x2="1000" y1="${10 + 150*f}" y2="${10 + 150*f}" stroke="#22262F"/>`).join("");
+  box.innerHTML = `<svg class="chart" viewBox="0 0 1000 170" preserveAspectRatio="none" role="img"
+      aria-label="Рейтинг от ${v[0]} до ${v[v.length-1]}">${grid}
+      <path d="${d}" fill="none" stroke="#E9A640" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>
+    <div class="axis"><span>${when(points[0].at)}</span><span>сейчас</span></div>`;
+  range.textContent = `${Math.min(...v)} – ${Math.max(...v)}`;
+}
+
+function deltaCell(m) {
+  if (m.status === "exact") return `<span class="v ${cls(m.delta)}">${sign(m.delta)}</span>`;
+  if (m.status === "pending") return `<span class="tag est est">примерно</span><span class="v est">≈ ${sign(m.estimate)}</span>`;
+  if (m.status === "group") return `<span class="tag neutral" title="Несколько матчей подряд без открытия «Истории»">сумма</span><span class="v ${cls(m.group_delta)}">${sign(m.group_delta)}</span>`;
+  if (m.status === "unrated") return `<span class="tag neutral">без рейтинга</span>`;
+  return "—";
+}
+
+function renderMatches(list) {
+  const box = document.getElementById("matches");
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">Сыграйте матч — он появится здесь сразу после падения трона</div>';
+    return;
+  }
+  box.innerHTML = list.map(m => {
+    const img = m.hero_code
+      ? `<img src="${CDN}${esc(m.hero_code)}.png" alt="" onerror="this.outerHTML='<div class=&quot;ph&quot;>${esc(initials(m.hero))}</div>'">`
+      : `<div class="ph">?</div>`;
+    const x2title = m.double_manual === null ? (m.double ? "Определено автоматически. Нажмите, чтобы изменить" : "Нажмите, если применяли жетон")
+                                             : "Отмечено вручную. Нажмите, чтобы изменить";
+    const x2 = m.status === "unrated" ? "" :
+      `<button class="x2 ${m.double ? "on" : ""} ${m.double_manual !== null ? "manual" : ""}" data-id="${esc(m.id)}"
+        aria-pressed="${m.double}" title="${x2title}" aria-label="Жетон двойного рейтинга">×2</button>`;
+    return `<div class="grid item">
+      <div class="mono muted" style="font-size:13px">${when(m.ended_at)}</div>
+      <div class="hero">${img}<span>${esc(m.hero)}</span></div>
+      <div class="${m.won ? "win" : "loss"}" style="font-weight:600">${m.won ? "Победа" : "Поражение"}</div>
+      <div class="mono" style="font-size:13px;color:var(--text-2)">${esc(m.kda)}</div>
+      <div class="mono muted" style="font-size:13px">${dur(m.duration_sec)}</div>
+      <div>${x2}</div>
+      <div class="delta r">${deltaCell(m)}</div>
+    </div>`;
+  }).join("");
+}
+
+function render(s) {
+  renderPills(s.status);
+  renderRating(s);
+  renderSession(s);
+  renderWeek(s);
+  renderChart(s.chart);
+  renderMatches(s.matches);
+}
+
+async function tick() {
+  try {
+    const s = await pywebview.api.get_state();
+    const json = JSON.stringify(s);
+    if (json !== lastJson) { lastJson = json; render(s); }
+  } catch (e) { console.error(e); }
+}
+
+document.getElementById("matches").addEventListener("click", async e => {
+  const b = e.target.closest(".x2");
+  if (!b) return;
+  await pywebview.api.toggle_double(b.dataset.id);
+  tick();
+});
+document.getElementById("quit").addEventListener("click", () => pywebview.api.quit());
+document.getElementById("widget-toggle").addEventListener("change", e => pywebview.api.set_widget_enabled(e.target.checked));
+
+let started = false;
+async function init() {
+  if (started) return;
+  started = true;
+  const cfg = await pywebview.api.get_settings();
+  document.getElementById("widget-toggle").checked = cfg.widget_enabled;
+  tick();
+  setInterval(tick, 1000);
+}
+window.addEventListener("pywebviewready", init);
+if (window.pywebview && window.pywebview.api) init();
+</script>
+</body>
+</html>

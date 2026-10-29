@@ -17,6 +17,9 @@ DEFAULTS = {
     "scan_interval_sec": 2.0,        # как часто смотреть на экран, когда ждём цифру
     "max_delta": 150,                # больше этого за один матч — считаем ошибкой распознавания
     "tesseract_cmd": "",             # путь к tesseract.exe, если он не в PATH
+    "widget_enabled": True,          # показывать виджет в главном меню Доты
+    "widget_x": 24,                  # положение виджета на экране (запоминается при перетаскивании)
+    "widget_y": 120,
 }
 
 _WINDOWS_TESSERACT = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
@@ -35,5 +38,10 @@ def load() -> dict:
         cfg["tesseract_cmd"] = str(_WINDOWS_TESSERACT)
         changed = True
     if changed:
-        CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        save(cfg)
     return cfg
+
+
+def save(cfg: dict) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")

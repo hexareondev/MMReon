@@ -37,6 +37,23 @@ class _POINT(ctypes.Structure):
     _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
 
 
+def window_status() -> dict:
+    """Есть ли окно Доты, свёрнуто ли оно и какое окно сейчас активно."""
+    if os.name != "nt":
+        return {"running": False, "minimized": False, "foreground_title": ""}
+    _ensure_dpi_awareness()
+    user32 = ctypes.windll.user32
+    hwnd = user32.FindWindowW(None, WINDOW_TITLE)
+    fg = user32.GetForegroundWindow()
+    buf = ctypes.create_unicode_buffer(256)
+    user32.GetWindowTextW(fg, buf, 256)
+    return {
+        "running": bool(hwnd),
+        "minimized": bool(hwnd) and bool(user32.IsIconic(hwnd)),
+        "foreground_title": buf.value,
+    }
+
+
 def dota_client_rect():
     """(left, top, width, height) клиентской области Доты, если она активное окно."""
     if os.name != "nt":

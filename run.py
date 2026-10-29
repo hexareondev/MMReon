@@ -1,8 +1,7 @@
 """MMReon — запуск трекера.
 
-    python run.py
-
-Оставьте окно консоли открытым, пока играете.
+    python run.py            — с окном и виджетом
+    python run.py --no-ui    — только консоль
 """
 import sys
 import threading
@@ -15,6 +14,7 @@ from mmreon.tracker import Tracker
 
 
 def main():
+    no_ui = "--no-ui" in sys.argv
     cfg = config.load()
     ocr.set_tesseract(cfg["tesseract_cmd"])
     store = Store(config.MATCHES_PATH)
@@ -33,9 +33,18 @@ def main():
         sys.exit(f"Не удалось открыть порт {cfg['gsi_port']}: {exc}. Возможно, трекер уже запущен.")
 
     print("MMReon запущен.", tracker.summary())
-    print(f"Жду данные от Доты на 127.0.0.1:{cfg['gsi_port']}. Ctrl+C — выход.")
+    print(f"Жду данные от Доты на 127.0.0.1:{cfg['gsi_port']}.")
+    scanner = threading.Thread(target=tracker.run_scanner, daemon=True, name="scanner")
+    scanner.start()
+
     try:
-        tracker.run_scanner()
+        if no_ui:
+            print("Ctrl+C — выход.")
+            scanner.join()
+        else:
+            from mmreon.app import App
+            print("Окно можно закрыть — трекер продолжит работать. Выход: кнопка «Выйти» или Ctrl+C здесь.")
+            App(tracker, cfg).run()
     except KeyboardInterrupt:
         pass
     finally:

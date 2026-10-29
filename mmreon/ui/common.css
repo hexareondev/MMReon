@@ -1,0 +1,35 @@
+:root {
+  --bg: #0E1014;
+  --panel: #171A21;
+  --panel-2: #13161C;
+  --line: #22262F;
+  --line-soft: #1F232B;
+  --text: #E7EAF0;
+  --text-2: #C4CAD5;
+  --muted: #A3ABBA;
+  --accent: #E9A640;
+  --win: #4FC38A;
+  --loss: #EF6F5A;
+  --est: #F0C887;
+  --est-bg: #2A2113;
+  --est-line: #4A3818;
+  --x2: #C9B6F5;
+  --x2-bg: #241E35;
+  --x2-line: #3D3260;
+  /* Системные шрифты: окно работает без интернета */
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+button { font: inherit; color: inherit; cursor: pointer; }
+.mono { font-family: var(--mono); }
+.win { color: var(--win); }
+.loss { color: var(--loss); }
+.est { color: var(--est); }
+.muted { color: var(--muted); }
+
+.stars { display: inline-flex; gap: 3px; vertical-align: middle; }
+.stars i { width: 7px; height: 7px; border-radius: 50%; background: #333946; display: block; }
+.stars i.on { background: var(--accent); }
