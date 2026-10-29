@@ -8,9 +8,24 @@
   body { min-height: 100vh; }
   .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 28px 32px; display: flex; flex-direction: column; gap: 18px; }
 
+  .titlebar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; height: 44px;
+              background: var(--panel-2); border-bottom: 1px solid var(--line); }
+  .titlebar .drag { flex: 1; height: 100%; display: flex; align-items: center; padding-left: 16px;
+                    font-size: 13px; font-weight: 700; color: var(--muted); }
+  .titlebar button { width: 48px; height: 44px; border: 0; background: transparent; color: var(--muted);
+                     display: flex; align-items: center; justify-content: center; }
+  .titlebar button:hover { background: #222631; color: var(--text); }
+  .titlebar button.close:hover { background: #C4352B; color: #fff; }
   header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; }
-  .logo b { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--bg);
+  .medal-icon { position: relative; width: 96px; height: 96px; flex: none; }
+  .medal-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .medal-fallback { width: 96px; height: 96px; border-radius: 50%; flex: none; display: flex; align-items: center;
+                    justify-content: center; background: #262B35; border: 3px solid var(--accent);
+                    font-weight: 800; font-size: 24px; color: var(--est); }
+  .rating-row { display: flex; align-items: center; gap: 20px; }
+  .rating-row > div:last-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: var(--text); pointer-events: none; }
+  .logo b { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: var(--bg);
             display: flex; align-items: center; justify-content: center; font-size: 15px; }
   .pills { display: flex; gap: 8px; flex-wrap: wrap; }
   .pill { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; font-size: 13px;
@@ -71,9 +86,17 @@
 </style>
 </head>
 <body>
+<div class="titlebar">
+  <div class="drag pywebview-drag-region"><span class="logo"><b aria-hidden="true">±</b>MMReon</span></div>
+  <button id="btn-min" aria-label="Свернуть" title="Свернуть — трекер продолжит работать">
+    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.4"/></svg>
+  </button>
+  <button id="btn-close" class="close" aria-label="Выйти из MMReon" title="Выйти из MMReon">
+    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="1.4"/></svg>
+  </button>
+</div>
 <div class="wrap">
   <header>
-    <div class="logo"><b aria-hidden="true">±</b>MMReon</div>
     <div class="pills" id="pills" aria-live="polite"></div>
   </header>
 
@@ -98,13 +121,13 @@
 
   <footer>
     <label><input type="checkbox" id="widget-toggle"> Показывать виджет в главном меню Доты</label>
-    <span>Закрытие окна сворачивает MMReon — трекер продолжает работать</span>
-    <button class="quit" id="quit">Выйти из MMReon</button>
+    <span>Сверните окно, чтобы трекер работал в фоне. Крестик — выход из MMReon.</span>
   </footer>
 </div>
 
 <script>
 const CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/";
+const RANKS = "https://www.opendota.com/assets/images/dota2/rank_icons/";
 let lastJson = "";
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -118,6 +141,25 @@ function when(iso) {
   return d.toDateString() === now.toDateString() ? t : pad(d.getDate()) + "." + pad(d.getMonth() + 1) + " " + t;
 }
 const stars = n => '<span class="stars" aria-hidden="true">' + [1,2,3,4,5].map(i => `<i class="${i <= n ? "on" : ""}"></i>`).join("") + "</span>";
+const SHORT = {"Рекрут":"Р","Страж":"С","Рыцарь":"Ры","Герой":"Г","Легенда":"Л","Властелин":"В","Божество":"Б","Титан":"Т"};
+function medalFallback(m, size) {
+  const [title, star] = m.name.split(" ");
+  return `<div class="medal-fallback" style="width:${size}px;height:${size}px;font-size:${Math.round(size/4)}px" aria-hidden="true">${(SHORT[title] || title[0]) + (star || "")}</div>`;
+}
+let medalBroken = false;   // иконки не загрузились (нет интернета) — дальше рисуем запасной значок
+function medalIcon(m, size) {
+  // Иконки медалей с сайта OpenDota: основа + звёзды поверх.
+  if (medalBroken) return medalFallback(m, size);
+  const n = m.index >= 7 ? 8 : m.index + 1;
+  const star = m.stars && n < 8 ? `<img src="${RANKS}rank_star_${m.stars}.png" alt="">` : "";
+  return `<div class="medal-icon" style="width:${size}px;height:${size}px" aria-hidden="true">
+    <img src="${RANKS}rank_icon_${n}.png" alt="" onerror="medalFail(this)">${star}</div>`;
+}
+function medalFail(img) {
+  medalBroken = true;
+  const box = img.closest(".medal-icon");
+  if (box) box.outerHTML = medalFallback(lastState.medal, parseInt(box.style.width, 10));
+}
 const initials = name => name.split(/[\s-]+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
 function renderPills(st) {
@@ -139,11 +181,16 @@ function renderRating(s) {
   const next = m.to_next != null ? `${m.to_next} до следующей звезды (${esc(m.next_name)})` : "";
   const conf = r.confidence != null ? ` · уверенность ${r.confidence}%` : "";
   el.innerHTML = `
-    <div class="label">Текущий рейтинг</div>
-    <div class="row"><div class="big">${r.value.toLocaleString("ru-RU")}</div>
-      <div class="medal">${esc(m.name)} ${m.stars ? stars(m.stars) : ""}</div></div>
-    <div class="bar" role="img" aria-label="${esc(next)}"><div style="width:${Math.round(m.progress*100)}%"></div></div>
-    <div class="small">${next}${conf} · прочитано ${when(r.read_at)}</div>`;
+    <div class="rating-row">
+      ${medalIcon(m, 96)}
+      <div>
+        <div class="label">Текущий рейтинг</div>
+        <div class="row"><div class="big">${r.value.toLocaleString("ru-RU")}</div>
+          <div class="medal">${esc(m.name)} ${m.stars ? stars(m.stars) : ""}</div></div>
+        <div class="bar" role="img" aria-label="${esc(next)}"><div style="width:${Math.round(m.progress*100)}%"></div></div>
+        <div class="small">${next}${conf} · прочитано ${when(r.read_at)}</div>
+      </div>
+    </div>`;
 }
 
 function renderSession(s) {
@@ -227,7 +274,9 @@ function renderMatches(list) {
   }).join("");
 }
 
+let lastState = null;
 function render(s) {
+  lastState = s;
   renderPills(s.status);
   renderRating(s);
   renderSession(s);
@@ -250,7 +299,8 @@ document.getElementById("matches").addEventListener("click", async e => {
   await pywebview.api.toggle_double(b.dataset.id);
   tick();
 });
-document.getElementById("quit").addEventListener("click", () => pywebview.api.quit());
+document.getElementById("btn-close").addEventListener("click", () => pywebview.api.quit());
+document.getElementById("btn-min").addEventListener("click", () => pywebview.api.minimize());
 document.getElementById("widget-toggle").addEventListener("change", e => pywebview.api.set_widget_enabled(e.target.checked));
 
 let started = false;

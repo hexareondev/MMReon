@@ -30,6 +30,9 @@ class Api:
     def show_main(self):
         self._app.show_main()
 
+    def minimize(self):
+        self._app.main.minimize()
+
     def get_settings(self):
         return {"widget_enabled": self._app.cfg.get("widget_enabled", True)}
 
@@ -52,7 +55,8 @@ class App:
         api = Api(self)
         self.main = webview.create_window(
             MAIN_TITLE, str(UI_DIR / "main.html"), js_api=api,
-            width=1180, height=820, min_size=(760, 560), background_color="#0E1014")
+            width=1180, height=860, min_size=(760, 560), background_color="#0E1014",
+            frameless=True, easy_drag=False)   # своя полоса заголовка в main.html
         self.widget = webview.create_window(
             WIDGET_TITLE, str(UI_DIR / "widget.html"), js_api=api,
             width=WIDGET_SIZE[0], height=WIDGET_SIZE[1],
@@ -64,20 +68,27 @@ class App:
         if moved is not None:
             moved += self._on_widget_moved
 
-    # Закрытие главного окна прячет его: трекер и виджет продолжают работать.
+    # Закрытие главного окна (× или Alt+F4) — выход из MMReon. Для работы в фоне окно сворачивают.
     def _on_main_closing(self):
-        if self.quitting:
-            return True
-        self.main.hide()
-        return False
+        if not self.quitting:
+            self.quitting = True
+            self._stop.set()
+            threading.Thread(target=self._destroy_widget, daemon=True).start()
+        return True
+
+    def _destroy_widget(self):
+        try:
+            self.widget.destroy()
+        except Exception:
+            pass
 
     def _on_widget_moved(self, x, y):
         self.cfg["widget_x"], self.cfg["widget_y"] = int(x), int(y)
         config.save(self.cfg)
 
     def show_main(self):
-        self.main.show()
         self.main.restore()
+        self.main.show()
 
     def quit(self):
         self.quitting = True
