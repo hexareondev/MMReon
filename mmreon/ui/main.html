@@ -13,14 +13,6 @@
   .wrap { max-width: 1200px; margin: 0 auto; padding: 18px 26px 26px; display: flex; flex-direction: column; gap: 16px; }
 
   /* Полоса заголовка */
-  .titlebar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; height: 40px;
-    background: rgba(18,21,28,.92); border-bottom: 1px solid var(--seam); backdrop-filter: blur(8px); }
-  .titlebar .drag { flex: 1; height: 100%; display: flex; align-items: center; gap: 10px; padding-left: 16px; }
-  .brand { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .5px; color: var(--text); pointer-events: none; }
-  .brand b { color: var(--bronze); font-weight: 700; }
-  .titlebar button { width: 46px; height: 40px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; }
-  .titlebar button:hover { background: var(--stone-2); color: var(--text); }
-  .titlebar button.close:hover { background: #B8352A; color: #fff; }
 
   /* Шапка: медаль, рейтинг, арт последнего героя */
   .hero { position: relative; overflow: hidden; border-radius: 22px; min-height: 210px;
@@ -120,7 +112,10 @@
 
   footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 0 4px; }
   footer label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; color: var(--text-2); }
-  footer input { width: 18px; height: 18px; accent-color: var(--bronze); }
+  footer input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--bronze); }
+  .settings { display: flex; gap: 8px 28px; flex-wrap: wrap; align-items: center; }
+  .opacity input { width: 140px; accent-color: var(--bronze); }
+  .opacity output { min-width: 40px; color: var(--text); }
 
   @media (max-width: 900px) {
     .hero { grid-template-columns: auto 1fr; }
@@ -130,16 +125,6 @@
 </style>
 </head>
 <body>
-<div class="titlebar">
-  <div class="drag pywebview-drag-region"><span class="brand"><b>MMR</b>eon</span></div>
-  <button id="btn-min" aria-label="Свернуть" title="Свернуть — трекер продолжит работать">
-    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.4"/></svg>
-  </button>
-  <button id="btn-close" class="close" aria-label="Выйти из MMReon" title="Выйти из MMReon">
-    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="1.4"/></svg>
-  </button>
-</div>
-
 <div class="wrap">
   <section class="hero" id="hero" aria-label="Текущий рейтинг"></section>
 
@@ -160,7 +145,12 @@
   </section>
 
   <footer>
-    <label><input type="checkbox" id="widget-toggle"> Показывать виджет в главном меню Доты</label>
+    <div class="settings">
+      <label><input type="checkbox" id="widget-toggle"> Показывать виджет в главном меню Доты</label>
+      <label class="opacity" for="widget-opacity">Непрозрачность виджета
+        <input type="range" id="widget-opacity" min="30" max="100" step="5" value="100">
+        <output id="widget-opacity-value" class="num">100%</output></label>
+    </div>
     <span>Сверните окно, чтобы трекер работал в фоне. Крестик закрывает MMReon.</span>
   </footer>
 </div>
@@ -376,8 +366,11 @@ document.getElementById("matches").addEventListener("click", async e => {
   await pywebview.api.toggle_double(b.dataset.id);
   tick();
 });
-document.getElementById("btn-close").addEventListener("click", () => pywebview.api.quit());
-document.getElementById("btn-min").addEventListener("click", () => pywebview.api.minimize());
+const opacity = document.getElementById("widget-opacity"), opacityOut = document.getElementById("widget-opacity-value");
+opacity.addEventListener("input", () => {
+  opacityOut.textContent = opacity.value + "%";
+  pywebview.api.set_widget_opacity(opacity.value / 100);
+});
 document.getElementById("widget-toggle").addEventListener("change", e => pywebview.api.set_widget_enabled(e.target.checked));
 window.addEventListener("resize", () => { if (lastState) renderChart(lastState.chart); });
 
@@ -387,6 +380,8 @@ async function init() {
   started = true;
   const cfg = await pywebview.api.get_settings();
   document.getElementById("widget-toggle").checked = cfg.widget_enabled;
+  opacity.value = Math.round(cfg.widget_opacity * 100);
+  opacityOut.textContent = opacity.value + "%";
   tick();
   setInterval(tick, 1000);
 }

@@ -6,22 +6,31 @@
 <link rel="stylesheet" href="common.css">
 <script src="ranks.js"></script>
 <style>
+  /* Размер как у панели профиля в главном меню Доты: 366×74 при 1920×1080. */
   html, body { height: 100%; overflow: hidden; user-select: none; background: var(--night); }
-  .w { position: relative; height: 100%; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 10px;
-       border: 1px solid var(--bronze-dim); border-radius: 12px;
-       background: linear-gradient(90deg, color-mix(in srgb, var(--tier, #C9A36A) 14%, #171A23), #171A23 60%); }
+  .w { height: 100%; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto auto; align-items: center;
+       column-gap: 10px; padding: 0 12px 0 6px; border: 1px solid #3A3226;
+       background: linear-gradient(90deg, color-mix(in srgb, var(--tier, #C9A36A) 16%, #161A22), #161A22 55%); }
   .w.wait { border-color: #6A5426; }
-  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-  .name { font-family: var(--display); font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .name .num { color: var(--text-2); font-weight: 400; margin-left: 6px; }
-  .sub { font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .val { font-family: var(--display); font-stretch: condensed; font-weight: 700; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .name { font-family: var(--display); font-weight: 600; font-size: 16px; line-height: 1.1;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tier, var(--text)); }
+  .sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub .num { color: var(--text-2); font-size: 13px; }
+  .stat { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .stat .v { font-family: var(--display); font-stretch: condensed; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .stat .k { font-size: 11px; color: var(--muted); }
+  .score .v { font-size: 22px; }
+  .score .dash { color: var(--muted); margin: 0 2px; }
+  .delta { min-width: 66px; }
+  .delta .v { font-size: 30px; }
+  .ph { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; justify-self: center;
+        background: var(--stone-2); border: 2px solid var(--bronze-dim); color: var(--muted);
+        font-family: var(--display); font-weight: 700; font-size: 20px; }
 </style>
 </head>
 <body>
-<div class="w" id="w" title="Двойной клик открывает MMReon">
-  <div class="info"><div class="name">MMReon</div><div class="sub">Загрузка…</div></div>
-</div>
+<div class="w" id="w" title="Двойной клик открывает MMReon"></div>
 <script>
 let last = "", lastState = null;
 
@@ -29,21 +38,32 @@ function render(s) {
   lastState = s;
   const w = document.getElementById("w"), se = s.session;
   const pending = se.pending > 0;
-  const icon = s.medal ? medalHTML(s.medal, 46) : "";
-  if (s.medal) w.style.setProperty("--tier", TIER_COLORS[s.medal.index]);
-  const name = s.medal ? `${esc(s.medal.name)}<span class="num">${s.rating.value.toLocaleString("ru-RU")}</span>` : "Рейтинг не прочитан";
-  let sub, val = "";
-  if (!s.rating) {
-    sub = '<span class="est">Откройте «Профиль → История»</span>';
-  } else if (pending) {
-    sub = '<span class="est">Откройте «Историю»</span>';
-    val = `<div class="val est">≈${sign(se.delta + se.estimate)}</div>`;
+
+  let icon, name, sub;
+  if (s.medal) {
+    w.style.setProperty("--tier", TIER_COLORS[s.medal.index]);
+    icon = `<div style="justify-self:center">${medalHTML(s.medal, 58)}</div>`;
+    name = esc(s.medal.name);
+    sub = pending ? '<span class="est">Откройте «Историю»</span>'
+                  : `Рейтинг <span class="num">${s.rating.value.toLocaleString("ru-RU")}</span>`;
   } else {
-    sub = se.items.length ? `Сессия: <span class="win">${se.wins}</span> – <span class="loss">${se.losses}</span>` : "Новая сессия";
-    val = se.items.length ? `<div class="val ${tone(se.delta)}">${sign(se.delta)}</div>` : "";
+    w.style.removeProperty("--tier");
+    icon = '<div class="ph" aria-hidden="true">?</div>';
+    name = "Нет рейтинга";
+    sub = '<span class="est">Откройте «Историю»</span>';
   }
+
+  // Счёт и изменение видны всегда: в начале сессии это 0–0 и +0.
+  const total = se.delta + se.estimate;
+  const deltaV = pending ? `<span class="est">≈${sign(total)}</span>`
+                         : `<span class="${se.delta ? tone(se.delta) : "muted"}">${se.delta < 0 ? sign(se.delta) : "+" + se.delta}</span>`;
+  const score = `<span class="${se.wins ? "win" : "muted"}">${se.wins}</span><span class="dash">–</span><span class="${se.losses ? "loss" : "muted"}">${se.losses}</span>`;
+
   w.className = "w" + (pending || !s.rating ? " wait" : "");
-  w.innerHTML = `${icon}<div class="info"><div class="name">${name}</div><div class="sub">${sub}</div></div>${val}`;
+  w.innerHTML = `${icon}
+    <div class="info"><div class="name">${name}</div><div class="sub">${sub}</div></div>
+    <div class="stat score"><div class="v">${score}</div><div class="k">счёт</div></div>
+    <div class="stat delta"><div class="v">${deltaV}</div><div class="k">за сессию</div></div>`;
 }
 function onMedalIconsBroken() { if (lastState) render(lastState); }
 
