@@ -6,8 +6,10 @@
 <link rel="stylesheet" href="common.css">
 <script src="ranks.js"></script>
 <style>
-  /* Размер как у панели профиля в главном меню Доты: 366×74 при 1920×1080. */
+  /* Вёрстка рассчитана на высоту 74 px (панель профиля Доты при 1080p);
+     под реальный размер окна виджет масштабируется целиком через zoom. */
   html, body { height: 100%; overflow: hidden; user-select: none; background: var(--night); }
+  body { cursor: default; }
   .w { height: 100%; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto auto; align-items: center;
        column-gap: 10px; padding: 0 12px 0 6px; border: 1px solid #3A3226;
        background: linear-gradient(90deg, color-mix(in srgb, var(--tier, #C9A36A) 16%, #161A22), #161A22 55%); }
@@ -30,9 +32,17 @@
 </style>
 </head>
 <body>
-<div class="w" id="w" title="Двойной клик открывает MMReon"></div>
+<div class="w" id="w"></div>
 <script>
 let last = "", lastState = null;
+
+// Высота окна → масштаб: всё помещается так же, как в эталонных 74 px.
+function fit() {
+  const z = window.innerHeight / 74;
+  if (z > 0) document.documentElement.style.zoom = z.toFixed(4);
+}
+window.addEventListener("resize", fit);
+fit();
 
 function render(s) {
   lastState = s;

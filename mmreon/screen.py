@@ -54,14 +54,17 @@ def window_status() -> dict:
     }
 
 
-def dota_client_rect():
-    """(left, top, width, height) клиентской области Доты, если она активное окно."""
+def dota_client_rect(require_foreground: bool = True):
+    """(left, top, width, height) клиентской области Доты в физических пикселях.
+
+    По умолчанию — только если Дота активное окно (для снимков экрана).
+    """
     if os.name != "nt":
         return None
     _ensure_dpi_awareness()
     user32 = ctypes.windll.user32
     hwnd = user32.FindWindowW(None, WINDOW_TITLE)
-    if not hwnd or user32.GetForegroundWindow() != hwnd:
+    if not hwnd or (require_foreground and user32.GetForegroundWindow() != hwnd):
         return None
     rect = _RECT()
     user32.GetClientRect(hwnd, ctypes.byref(rect))

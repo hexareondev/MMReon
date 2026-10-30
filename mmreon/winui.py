@@ -81,19 +81,39 @@ def dark_frame(title: str, caption: str = "#12151C", text: str = "#ECE7DE", bord
     return True
 
 
-def set_opacity(title: str, value: float) -> bool:
-    """Прозрачность всего окна целиком (0.3–1.0)."""
+GWL_EXSTYLE = -20
+WS_EX_TRANSPARENT = 0x00000020      # клики проходят сквозь окно
+WS_EX_TOOLWINDOW = 0x00000080       # нет кнопки на панели задач и в Alt+Tab
+WS_EX_APPWINDOW = 0x00040000
+WS_EX_LAYERED = 0x00080000          # нужен для прозрачности и пропуска кликов
+WS_EX_NOACTIVATE = 0x08000000       # не забирает фокус у игры
+LWA_ALPHA = 0x2
+
+
+def overlay_style(title: str, click_through: bool, opacity: float) -> bool:
+    """Делает виджет оверлеем: без панели задач и Alt+Tab, без фокуса, при желании — сквозной для кликов."""
     hwnd = find(title)
     if not hwnd:
         return False
-    GWL_EXSTYLE, WS_EX_LAYERED, LWA_ALPHA = -20, 0x00080000, 0x2
-    style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-    if value >= 0.995:
-        if style & WS_EX_LAYERED:
-            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style & ~WS_EX_LAYERED)
-        return True
-    if not style & WS_EX_LAYERED:
-        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED)
-    alpha = max(77, min(255, int(round(value * 255))))
-    user32.SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA)
+    ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    new = (ex | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) & ~WS_EX_APPWINDOW
+    layered = click_through or opacity < 0.995
+    new = (new | WS_EX_TRANSPARENT) if click_through else (new & ~WS_EX_TRANSPARENT)
+    new = (new | WS_EX_LAYERED) if layered else (new & ~WS_EX_LAYERED)
+    if new != ex:
+        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ctypes.c_long(new & 0xFFFFFFFF).value)
+    if layered:
+        alpha = max(77, min(255, int(round(opacity * 255))))
+        user32.SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA)
+    return True
+
+
+def place(title: str, x: int, y: int, w: int, h: int) -> bool:
+    """Ставит окно поверх остальных точно в указанный прямоугольник (физические пиксели)."""
+    hwnd = find(title)
+    if not hwnd:
+        return False
+    HWND_TOPMOST = wintypes.HWND(-1)
+    SWP_NOACTIVATE = 0x0010
+    user32.SetWindowPos(hwnd, HWND_TOPMOST, int(x), int(y), int(w), int(h), SWP_NOACTIVATE)
     return True

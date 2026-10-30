@@ -147,6 +147,8 @@
   <footer>
     <div class="settings">
       <label><input type="checkbox" id="widget-toggle"> Показывать виджет в главном меню Доты</label>
+      <label title="Виджет встаёт поверх панели профиля и не мешает кликать по Доте. Если выключить, его можно перетаскивать мышью, а двойной клик откроет это окно.">
+        <input type="checkbox" id="widget-anchor"> Закрепить на панели профиля</label>
       <label class="opacity" for="widget-opacity">Непрозрачность виджета
         <input type="range" id="widget-opacity" min="30" max="100" step="5" value="100">
         <output id="widget-opacity-value" class="num">100%</output></label>
@@ -371,6 +373,7 @@ opacity.addEventListener("input", () => {
   opacityOut.textContent = opacity.value + "%";
   pywebview.api.set_widget_opacity(opacity.value / 100);
 });
+document.getElementById("widget-anchor").addEventListener("change", e => pywebview.api.set_widget_anchor(e.target.checked));
 document.getElementById("widget-toggle").addEventListener("change", e => pywebview.api.set_widget_enabled(e.target.checked));
 window.addEventListener("resize", () => { if (lastState) renderChart(lastState.chart); });
 
@@ -380,6 +383,7 @@ async function init() {
   started = true;
   const cfg = await pywebview.api.get_settings();
   document.getElementById("widget-toggle").checked = cfg.widget_enabled;
+  document.getElementById("widget-anchor").checked = cfg.widget_anchor;
   opacity.value = Math.round(cfg.widget_opacity * 100);
   opacityOut.textContent = opacity.value + "%";
   tick();

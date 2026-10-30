@@ -8,13 +8,24 @@ from pathlib import Path
 import webview
 
 from . import config, state, winui
-from .screen import WINDOW_TITLE, window_status
+from .screen import WINDOW_TITLE, dota_client_rect, window_status
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 ICON = Path(__file__).resolve().parent / "assets" / "mmreon.ico"
 MAIN_TITLE = "MMReon"
 WIDGET_TITLE = "MMReon · виджет"
-WIDGET_SIZE = (366, 74)   # как панель профиля в главном меню Доты при 1920×1080
+WIDGET_SIZE = (366, 74)
+# Панель профиля в главном меню Доты в координатах клиента 1920×1080.
+# Левая колонка Доты привязана к левому краю и масштабируется по высоте окна.
+PROFILE_PANEL = (33, 100, 366, 74)
+
+
+def profile_panel_rect(rect):
+    """Прямоугольник панели профиля на экране по клиентской области окна Доты."""
+    left, top, _, height = rect
+    s = height / 1080
+    x, y, w, h = PROFILE_PANEL
+    return left + round(x * s), top + round(y * s), round(w * s), round(h * s)
 
 
 class Api:
@@ -33,18 +44,25 @@ class Api:
         self._app.show_main()
 
     def get_settings(self):
-        return {"widget_enabled": self._app.cfg.get("widget_enabled", True),
-                "widget_opacity": self._app.cfg.get("widget_opacity", 1.0)}
+        cfg = self._app.cfg
+        return {"widget_enabled": cfg.get("widget_enabled", True),
+                "widget_opacity": cfg.get("widget_opacity", 1.0),
+                "widget_anchor": cfg.get("widget_anchor", True)}
 
     def set_widget_enabled(self, enabled):
         self._app.cfg["widget_enabled"] = bool(enabled)
         config.save(self._app.cfg)
 
     def set_widget_opacity(self, value):
-        value = max(0.3, min(1.0, float(value)))
-        self._app.cfg["widget_opacity"] = value
+        self._app.cfg["widget_opacity"] = max(0.3, min(1.0, float(value)))
         config.save(self._app.cfg)
-        winui.set_opacity(WIDGET_TITLE, value)
+        self._app.apply_widget_style()
+
+    def set_widget_anchor(self, anchored):
+        self._app.cfg["widget_anchor"] = bool(anchored)
+        config.save(self._app.cfg)
+        self._app.apply_widget_style()
+        self._app.reposition_widget(force=True)
 
     def quit(self):
         self._app.quit()
@@ -57,6 +75,7 @@ class App:
         self.dota_running = False
         self.quitting = False
         self._widget_visible = False
+        self._widget_rect = None
         self._stop = threading.Event()
         api = Api(self)
         self.main = webview.create_window(
@@ -88,8 +107,30 @@ class App:
             pass
 
     def _on_widget_moved(self, x, y):
+        if self.cfg.get("widget_anchor", True):
+            return      # закреплённый виджет двигаем сами
         self.cfg["widget_x"], self.cfg["widget_y"] = int(x), int(y)
         config.save(self.cfg)
+
+    def apply_widget_style(self):
+        """Оверлей: без панели задач и фокуса. Закреплённый — ещё и пропускает клики в Доту."""
+        winui.overlay_style(WIDGET_TITLE,
+                            click_through=self.cfg.get("widget_anchor", True),
+                            opacity=self.cfg.get("widget_opacity", 1.0))
+
+    def reposition_widget(self, force=False):
+        if self.cfg.get("widget_anchor", True):
+            rect = dota_client_rect(require_foreground=False)
+            if not rect:
+                return
+            target = profile_panel_rect(rect)
+        else:
+            target = (self.cfg.get("widget_x", 24), self.cfg.get("widget_y", 120), *WIDGET_SIZE)
+            if not force:
+                return  # свободный виджет пользователь двигает сам
+        if force or target != self._widget_rect:
+            winui.place(WIDGET_TITLE, *target)
+            self._widget_rect = target
 
     def show_main(self):
         self.main.restore()
@@ -113,16 +154,20 @@ class App:
             dota_active = st["foreground_title"] == WINDOW_TITLE
             want = (self.cfg.get("widget_enabled", True) and st["running"] and not st["minimized"]
                     and not self.tracker.in_match and (dota_active or ours))
-            if want != self._widget_visible:
-                try:
+            try:
+                if want != self._widget_visible:
                     if want:
+                        self.apply_widget_style()
                         self.widget.show()
-                        winui.set_opacity(WIDGET_TITLE, self.cfg.get("widget_opacity", 1.0))
+                        self.apply_widget_style()
+                        self.reposition_widget(force=True)
                     else:
                         self.widget.hide()
                     self._widget_visible = want
-                except Exception:
-                    pass
+                elif want:
+                    self.reposition_widget()    # Дота могла сменить размер или положение окна
+            except Exception:
+                pass
 
     def _decorate(self):
         """Иконка и тёмная рамка — как только Windows создаст окна."""
@@ -133,6 +178,7 @@ class App:
         winui.dark_frame(MAIN_TITLE)
         for title in (MAIN_TITLE, WIDGET_TITLE):
             winui.set_icon(title, ICON)
+        self.apply_widget_style()   # пока виджет скрыт — тогда он сразу появится без кнопки на панели задач
 
     def run(self, on_started=None):
         winui.set_app_id("hexareon.mmreon")
