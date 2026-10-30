@@ -57,6 +57,38 @@ def set_icon(title: str, ico_path) -> bool:
     return True
 
 
+def set_form_icon(window, ico_path) -> bool:
+    """Иконка через само окно WinForms, которым pywebview управляет на Windows.
+
+    Сообщение WM_SETICON pywebview может перезаписать своей иконкой (значок Python),
+    а свойство Form.Icon он уже не трогает. Оно же даёт иконку на панели задач.
+    """
+    if not IS_WIN:
+        return False
+    try:
+        import clr  # noqa: F401  (pythonnet, приходит вместе с pywebview)
+        from System import Action
+        from System.Drawing import Icon
+
+        form = getattr(window, "native", None)
+        if form is None:
+            return False
+        icon = Icon(str(ico_path))
+        _icons.append(icon)
+
+        def apply():
+            form.Icon = icon
+            form.ShowIcon = True
+
+        if form.InvokeRequired:
+            form.Invoke(Action(apply))
+        else:
+            apply()
+        return True
+    except Exception:
+        return False
+
+
 def _rgb(hex_color: str) -> int:
     h = hex_color.lstrip("#")
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)

@@ -84,6 +84,7 @@ class App:
         self.widget = webview.create_window(
             WIDGET_TITLE, str(UI_DIR / "widget.html"), js_api=api,
             width=WIDGET_SIZE[0], height=WIDGET_SIZE[1],
+            min_size=(40, 20),      # по умолчанию pywebview не даёт окну быть ниже 100 px
             x=cfg.get("widget_x", 24), y=cfg.get("widget_y", 120),
             frameless=True, easy_drag=True, resizable=False, on_top=True,
             focus=False, hidden=True, background_color="#12151C")
@@ -172,12 +173,13 @@ class App:
     def _decorate(self):
         """Иконка и тёмная рамка — как только Windows создаст окна."""
         for _ in range(50):
-            if winui.find(MAIN_TITLE):
+            if winui.find(MAIN_TITLE) and getattr(self.main, "native", None) is not None:
                 break
             time.sleep(0.1)
         winui.dark_frame(MAIN_TITLE)
-        for title in (MAIN_TITLE, WIDGET_TITLE):
-            winui.set_icon(title, ICON)
+        for window, title in ((self.main, MAIN_TITLE), (self.widget, WIDGET_TITLE)):
+            if not winui.set_form_icon(window, ICON):
+                winui.set_icon(title, ICON)
         self.apply_widget_style()   # пока виджет скрыт — тогда он сразу появится без кнопки на панели задач
 
     def run(self, on_started=None):
