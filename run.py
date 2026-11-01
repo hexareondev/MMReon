@@ -10,7 +10,7 @@ import sys
 import threading
 from datetime import datetime
 
-from mmreon import config, ocr
+from mmreon import config, gsi_install, ocr
 from mmreon.gsi import start_server
 from mmreon.screen import Grabber
 from mmreon.store import Store
@@ -49,6 +49,9 @@ def main():
         fail("MMReon уже запущен (или порт занят другой программой).")
 
     log("MMReon запущен. " + tracker.summary())
+    note = gsi_install.ensure_current(cfg)
+    if note:
+        log(note)
     log(f"Жду данные от Доты на 127.0.0.1:{cfg['gsi_port']}.")
     scanner = threading.Thread(target=tracker.run_scanner, daemon=True, name="scanner")
     scanner.start()

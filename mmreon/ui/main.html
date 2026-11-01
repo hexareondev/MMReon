@@ -117,6 +117,74 @@
   .opacity input { width: 140px; accent-color: var(--bronze); }
   .opacity output { min-width: 40px; color: var(--text); }
 
+  /* Прогноз под полосой прогресса */
+  .forecast { margin-top: 10px; font-size: 13px; color: var(--text-2); }
+  .forecast b { color: var(--tier, var(--bronze)); font-weight: 600; }
+  .forecast .sep { color: var(--seam); margin: 0 10px; }
+
+  /* Сессия: матч из «Истории» без точного изменения */
+  .chip.h { outline: 1px dashed currentColor; outline-offset: -1px; opacity: .8; font-size: 13px; }
+
+  /* Герои */
+  .heroes { margin-top: 10px; display: flex; flex-direction: column; }
+  .hrow { display: grid; grid-template-columns: 64px minmax(120px, 1.3fr) 110px minmax(180px, 1.4fr) minmax(170px, 1fr);
+          gap: 16px; align-items: center; padding: 8px 0; border-top: 1px solid #242936; }
+  .hrow:first-child { border-top: 0; }
+  .portrait.sm { width: 64px; height: 36px; border-radius: 6px; font-size: 13px; }
+  .hname { font-family: var(--display); font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hgames { font-size: 16px; }
+  .hgames .muted { font-size: 13px; font-family: var(--sans); }
+  .hwr { display: flex; align-items: center; gap: 10px; }
+  .hwr .num { font-size: 15px; }
+  .wr { flex: 1; max-width: 120px; height: 8px; border-radius: 4px;
+        background: linear-gradient(90deg, var(--radiant) var(--w), var(--dire) var(--w)); }
+  .hmmr { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+  .hbar { flex: 1; max-width: 120px; height: 6px; border-radius: 3px; background: #262B37; overflow: hidden; }
+  .hbar i { display: block; height: 100%; border-radius: 3px; }
+  .hbar i.w { background: var(--radiant); }
+  .hbar i.l { background: var(--dire); }
+  .more { margin-top: 10px; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--seam);
+          background: var(--stone-2); color: var(--text-2); }
+  .more:hover { color: var(--text); border-color: var(--bronze-dim); }
+
+  /* Матчи: раскрываемые подробности */
+  .match.open { background: rgba(201,163,106,.035); }
+  button.who { border: 0; background: transparent; text-align: left; padding: 6px 0; cursor: pointer; }
+  button.who:hover .name { color: var(--bronze); }
+  .who .mode { margin-left: 8px; font-family: var(--sans); font-size: 11px; font-weight: 600; padding: 2px 7px;
+               border-radius: 5px; color: var(--muted); border: 1px solid var(--seam); vertical-align: 2px; }
+  .chev { display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-right: 1.5px solid var(--muted);
+          border-bottom: 1.5px solid var(--muted); transform: rotate(45deg) translateY(-3px); transition: transform .15s; }
+  .match.open .chev { transform: rotate(-135deg) translateY(-1px); }
+  .details { display: flex; flex-wrap: wrap; gap: 14px 34px; padding: 6px 22px 18px 110px; }
+  .details .empty { padding: 0; }
+  .dblock { display: flex; flex-direction: column; gap: 8px; }
+  .dblock.wide { flex: 1 1 320px; }
+  .dlabel { font-size: 12px; color: var(--muted); }
+  .build { display: flex; gap: 4px; align-items: center; }
+  .neutral-wrap { margin-left: 8px; }
+  .itm { width: 50px; height: 37px; border-radius: 4px; overflow: hidden; background: #0F1218; border: 1px solid #262B37;
+          display: grid; place-items: center; font-size: 10px; color: var(--muted); }
+  .itm img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .itm.empty { opacity: .5; }
+  .itm.neutral { width: 37px; border-radius: 50%; }
+  .itm.small { width: 36px; height: 27px; }
+  .backpack { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--muted); }
+  .backpack span { margin-left: 6px; }
+  .buffs { display: flex; gap: 6px; }
+  .buff { font-size: 12px; padding: 3px 8px; border-radius: 5px; border: 1px dashed var(--seam); color: #6F7282; }
+  .buff.on { border: 1px solid #3B6FA8; background: #172539; color: #8CC0F2; }
+  .timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 10px; }
+  .timeline li { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+  .talents { display: flex; flex-direction: column-reverse; gap: 4px; }
+  .tier { display: grid; grid-template-columns: 34px 30px 34px; align-items: center; gap: 4px; }
+  .tier .num { text-align: center; font-size: 13px; color: var(--muted); }
+  .tier i { height: 8px; border-radius: 4px; background: #262B37; }
+  .tier i.on { background: var(--bronze); }
+  .nums { margin: 0; display: grid; grid-template-columns: repeat(2, auto); gap: 8px 22px; }
+  .nums dt { font-size: 12px; color: var(--muted); }
+  .nums dd { margin: 2px 0 0; font-size: 16px; }
+
   @media (max-width: 900px) {
     .hero { grid-template-columns: auto 1fr; }
     .status { grid-column: 1 / -1; align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
@@ -136,6 +204,12 @@
   <section class="panel">
     <div class="panel-head"><h2>Рейтинг за 30 дней</h2><span class="muted" id="chart-range"></span></div>
     <div id="chart"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Герои</h2><span class="muted">Рейтинговые матчи, изменение рейтинга — по точным данным</span></div>
+    <div id="heroes" class="heroes"></div>
+    <button id="heroes-more" class="more" hidden></button>
   </section>
 
   <section class="panel matches">
@@ -205,6 +279,7 @@ function renderHero(s) {
       <div class="rating">${r.value.toLocaleString("ru-RU")}</div>
       <div class="rank-line"><span class="rank-name">${esc(m.name)}</span><span class="rank-next">${next}</span></div>
       <div class="track" role="img" aria-label="Прогресс до следующей звезды: ${Math.round(m.progress * 100)}%"><div style="width:${Math.max(3, Math.round(m.progress * 100))}%"></div></div>
+      ${forecastHTML(s.forecast, m)}
       <div class="rating-meta">
         ${r.confidence != null ? `<span>Уверенность в ранге ${r.confidence}%</span>` : ""}
         <span>Обновлено ${when(r.read_at)}</span>
@@ -213,13 +288,24 @@ function renderHero(s) {
     ${status}`;
 }
 
+function forecastHTML(f, m) {
+  if (!f) return "";
+  const wins = n => `${n} ${plural(n, "победа", "победы", "побед")}`;
+  const parts = [`<b>≈${wins(f.wins_to_star)}</b> до звания ${esc(m.next_name)}`];
+  if (f.wins_to_medal && !m.next_name.startsWith(m.next_medal)) parts.push(`≈${wins(f.wins_to_medal)} до медали ${esc(m.next_medal)}`);
+  return `<div class="forecast" title="Расчёт по средней победе без жетона: +${f.per_win}">${parts.join("<span class='sep'>/</span>")}</div>`;
+}
+
 function chipHTML(m) {
   const x2 = m.double ? '<span class="x2">×2</span>' : "";
   const title = `${esc(m.hero)}, ${m.won ? "победа" : "поражение"}`;
+  const wl = m.won ? "П" : "Пр";
   if (m.status === "exact") return `<div class="chip ${m.delta >= 0 ? "w" : "l"}" title="${title}">${sign(m.delta)}${x2}</div>`;
   if (m.status === "pending") return `<div class="chip p" title="${title}, ждёт «Истории»">≈${sign(m.estimate)}${x2}</div>`;
-  if (m.status === "group") return `<div class="chip ${m.won ? "w" : "l"}" title="${title}, известна только сумма">${m.won ? "П" : "Пр"}${x2}</div>`;
-  return `<div class="chip u" title="${title}, без рейтинга">${m.won ? "П" : "Пр"}</div>`;
+  if (m.status === "group") return `<div class="chip ${m.won ? "w" : "l"}" title="${title}, известна только сумма">${wl}${x2}</div>`;
+  if (m.status === "history" && m.mode === "ranked")
+    return `<div class="chip ${m.won ? "w" : "l"} h" title="${title}, из «Истории», без точного изменения">${wl}</div>`;
+  return `<div class="chip u" title="${title}, ${m.mode_label || "без рейтинга"}">${wl}</div>`;
 }
 
 function renderSession(s) {
@@ -315,9 +401,56 @@ function deltaCell(m) {
   if (m.status === "group")
     return `<span class="tag n" title="Несколько матчей подряд без открытия «Истории»">сумма нескольких матчей</span><span class="dv ${tone(m.group_delta)}">${sign(m.group_delta)}</span>`;
   if (m.status === "unrated") return `<span class="tag n">без рейтинга</span>`;
+  if (m.status === "history")
+    return `<span class="tag n" title="Матч сыгран, когда трекер не работал. Точное изменение рейтинга неизвестно.">из «Истории»</span>`;
   return "";
 }
 
+const ITEMS_URL = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/items/";
+const itemName = code => code.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+const clock = t => `${Math.floor(t / 60)}:${pad(Math.floor(t % 60))}`;
+function itemIcon(code, cls = "itm") {
+  if (!code) return `<div class="${cls} empty"></div>`;
+  return `<div class="${cls}" title="${esc(itemName(code))}"><img src="${ITEMS_URL}${esc(code)}.png" alt="${esc(itemName(code))}"
+    onerror="this.parentNode.classList.add('noimg');this.parentNode.textContent='${esc(itemName(code)).slice(0, 3)}'"></div>`;
+}
+
+function detailsHTML(m) {
+  const d = m.details || {};
+  const blocks = [];
+  if (d.items) {
+    const extras = [];
+    if (d.scepter != null) extras.push(`<span class="buff ${d.scepter ? "on" : ""}">Аганим</span>`);
+    if (d.shard != null) extras.push(`<span class="buff ${d.shard ? "on" : ""}">Шард</span>`);
+    blocks.push(`<div class="dblock"><div class="dlabel">Предметы в конце матча</div>
+      <div class="build">${d.items.map(i => itemIcon(i)).join("")}<div class="neutral-wrap">${itemIcon(d.neutral, "itm neutral")}</div></div>
+      ${d.backpack && d.backpack.some(Boolean) ? `<div class="backpack">${d.backpack.map(i => itemIcon(i, "itm small")).join("")}<span>рюкзак</span></div>` : ""}
+      ${extras.length ? `<div class="buffs">${extras.join("")}</div>` : ""}</div>`);
+  }
+  if (d.item_timings && d.item_timings.length) {
+    blocks.push(`<div class="dblock wide"><div class="dlabel">Когда собраны предметы</div>
+      <ol class="timeline">${d.item_timings.map(t => `<li>${itemIcon(t.item, "itm small")}<span class="num">${clock(t.t)}</span></li>`).join("")}</ol></div>`);
+  }
+  if (d.talents) {
+    const tiers = [10, 15, 20, 25].map((lvl, i) => {
+      const a = d.talents[i * 2], b = d.talents[i * 2 + 1];
+      return `<div class="tier"><i class="${a ? "on" : ""}"></i><span class="num">${lvl}</span><i class="${b ? "on" : ""}"></i></div>`;
+    }).join("");
+    blocks.push(`<div class="dblock"><div class="dlabel">Таланты</div><div class="talents">${tiers}</div></div>`);
+  }
+  const nums = [];
+  if (d.level != null) nums.push(["Уровень", d.level]);
+  if (d.gpm != null) nums.push(["GPM / XPM", `${d.gpm} / ${d.xpm ?? "—"}`]);
+  if (d.last_hits != null) nums.push(["Добивания", `${d.last_hits} / ${d.denies ?? 0}`]);
+  if (d.lh10 != null) nums.push(["Добивания к 10:00", d.lh10]);
+  if (d.rating_before != null) nums.push(["Рейтинг", `${d.rating_before} → ${d.rating_after}`]);
+  if (m.mode_label) nums.push(["Тип игры", m.mode_label]);
+  if (nums.length) blocks.push(`<div class="dblock"><dl class="nums">${nums.map(([k, v]) => `<div><dt>${k}</dt><dd class="num">${esc(v)}</dd></div>`).join("")}</dl></div>`);
+  if (!blocks.length) return `<div class="details"><div class="empty">Подробностей нет: матч взят из «Истории» Доты.</div></div>`;
+  return `<div class="details">${blocks.join("")}</div>`;
+}
+
+const openRows = new Set();
 function renderMatches(list) {
   const box = document.getElementById("matches");
   if (!list.length) {
@@ -328,20 +461,56 @@ function renderMatches(list) {
     const res = m.won ? "w" : "l";
     const x2title = m.double_manual === null ? (m.double ? "Определено автоматически. Нажмите, чтобы изменить" : "Нажмите, если применяли жетон")
                                              : "Отмечено вручную. Нажмите, чтобы изменить";
-    const x2 = m.status === "unrated" ? "" :
+    const x2 = (m.status === "unrated" || m.status === "history") ? "" :
       `<button class="x2btn ${m.double ? "on" : ""} ${m.double_manual !== null ? "manual" : ""}" data-id="${esc(m.id)}"
          aria-pressed="${m.double}" title="${x2title}" aria-label="Жетон двойного рейтинга">×2</button>`;
-    const [k, de, a] = m.kda.split("/");
-    return `<div class="row item">
-      <div class="edge ${res}"></div>
-      ${portrait(m)}
-      <div class="who"><div class="name">${esc(m.hero)}</div><div class="when">${when(m.ended_at)}${m.duration_sec != null ? ", " + dur(m.duration_sec) : ""}</div></div>
-      <div class="result ${m.won ? "win" : "loss"}">${m.won ? "Победа" : "Поражение"}</div>
-      <div class="kda">${k}<span> / </span>${de}<span> / </span>${a}</div>
-      <div>${x2}</div>
-      <div class="delta">${deltaCell(m)}</div>
+    const kda = m.kda ? (([k, de, a]) => `${k}<span> / </span>${de}<span> / </span>${a}`)(m.kda.split("/")) : '<span>—</span>';
+    const mode = m.mode && m.mode !== "ranked" ? `<span class="mode">${esc(m.mode_label)}</span>` : "";
+    const open = openRows.has(m.id);
+    return `<div class="match ${open ? "open" : ""}">
+      <div class="row item">
+        <div class="edge ${res}"></div>
+        ${portrait(m)}
+        <button class="who" data-open="${esc(m.id)}" aria-expanded="${open}" title="Подробности матча">
+          <div class="name">${esc(m.hero)}${mode}</div>
+          <div class="when">${when(m.started_at || m.ended_at)}${m.duration_sec != null ? ", " + dur(m.duration_sec) : ""}<span class="chev" aria-hidden="true"></span></div>
+        </button>
+        <div class="result ${m.won ? "win" : "loss"}">${m.won ? "Победа" : "Поражение"}</div>
+        <div class="kda">${kda}</div>
+        <div>${x2}</div>
+        <div class="delta">${deltaCell(m)}</div>
+      </div>
+      ${open ? detailsHTML(m) : ""}
     </div>`;
   }).join("");
+}
+
+let heroesAll = false;
+function renderHeroes(list) {
+  const box = document.getElementById("heroes"), more = document.getElementById("heroes-more");
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">Статистика появится после первых рейтинговых матчей.</div>';
+    more.hidden = true;
+    return;
+  }
+  const shown = heroesAll ? list : list.slice(0, 6);
+  const maxMmr = Math.max(30, ...list.map(h => Math.abs(h.mmr)));
+  box.innerHTML = shown.map(h => {
+    const mmr = h.mmr_games
+      ? `<div class="hbar" aria-hidden="true"><i class="${h.mmr >= 0 ? "w" : "l"}" style="width:${Math.round(Math.abs(h.mmr) / maxMmr * 100)}%"></i></div>
+         <span class="dv ${tone(h.mmr)}">${sign(h.mmr)}</span>`
+      : '<span class="muted" style="font-size:13px">нет точных данных</span>';
+    return `<div class="hrow">
+      ${portrait({hero: h.name, hero_code: h.code}, "portrait sm")}
+      <div class="hname">${esc(h.name)}</div>
+      <div class="hgames num">${h.games}<span class="muted"> ${plural(h.games, "матч", "матча", "матчей")}</span></div>
+      <div class="hwr"><div class="wr" style="--w:${h.winrate}%" role="img" aria-label="Побед ${h.wins}, поражений ${h.losses}"></div>
+        <span class="num ${h.winrate >= 50 ? "win" : "loss"}">${h.winrate}%</span><span class="muted num">${h.wins}–${h.losses}</span></div>
+      <div class="hmmr">${mmr}</div>
+    </div>`;
+  }).join("");
+  more.hidden = list.length <= 6;
+  more.textContent = heroesAll ? "Свернуть" : `Все герои (${list.length})`;
 }
 
 function render(s) {
@@ -350,6 +519,7 @@ function render(s) {
   renderSession(s);
   renderWeek(s);
   renderChart(s.chart);
+  renderHeroes(s.heroes);
   renderMatches(s.matches);
 }
 function onMedalIconsBroken() { if (lastState) render(lastState); }
@@ -363,10 +533,21 @@ async function tick() {
 }
 
 document.getElementById("matches").addEventListener("click", async e => {
+  const opener = e.target.closest("[data-open]");
+  if (opener) {
+    const id = opener.dataset.open;
+    openRows.has(id) ? openRows.delete(id) : openRows.add(id);
+    if (lastState) renderMatches(lastState.matches);
+    return;
+  }
   const b = e.target.closest(".x2btn");
   if (!b) return;
   await pywebview.api.toggle_double(b.dataset.id);
   tick();
+});
+document.getElementById("heroes-more").addEventListener("click", () => {
+  heroesAll = !heroesAll;
+  if (lastState) renderHeroes(lastState.heroes);
 });
 const opacity = document.getElementById("widget-opacity"), opacityOut = document.getElementById("widget-opacity-value");
 opacity.addEventListener("input", () => {

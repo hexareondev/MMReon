@@ -4,7 +4,7 @@ from __future__ import annotations
 import statistics
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from . import ocr
 from .store import Store
@@ -12,10 +12,40 @@ from .store import Store
 POST_GAME = "DOTA_GAMERULES_STATE_POST_GAME"
 TYPICAL_DELTA = 28          # пока нет своей статистики
 DOUBLE_FACTOR = 1.6         # изменение в 1.6+ раза больше обычного — похоже на жетон ×2
+IDLE_SCAN_SEC = 5.0         # когда ничего не ждём, «Историю» проверяем реже — только для сверки таблицы
+HISTORY_MATCH_WINDOW = timedelta(minutes=20)
+
+# Расходники и мелочь — их время покупки не показываем.
+CONSUMABLES = {
+    "tango", "flask", "clarity", "enchanted_mango", "faerie_fire", "ward_observer", "ward_sentry",
+    "ward_dispenser", "dust", "smoke_of_deceit", "tpscroll", "tome_of_knowledge", "blood_grenade",
+    "branches", "famango", "great_famango", "greater_famango", "cheese", "aegis", "refresher_shard",
+    "royal_jelly", "roshans_banner", "bottle",
+}
 
 
 def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _local_naive(iso: str) -> datetime:
+    return datetime.fromisoformat(iso).astimezone().replace(tzinfo=None)
+
+
+def _items(payload: dict) -> dict:
+    """Предметы из раздела items GSI: инвентарь, рюкзак, тайник, нейтральный."""
+    raw = payload.get("items") or {}
+
+    def name(slot):
+        n = (raw.get(slot) or {}).get("name") or "empty"
+        return None if n == "empty" else n.replace("item_", "")
+
+    return {
+        "inventory": [name(f"slot{i}") for i in range(6)],
+        "backpack": [name(f"slot{i}") for i in range(6, 9)],
+        "stash": [name(f"stash{i}") for i in range(6)],
+        "neutral": name("neutral0"),
+    }
 
 
 def is_double(m: dict) -> bool:
@@ -39,9 +69,55 @@ class Tracker:
         self._candidate = None          # прошлое прочтение, ждём подтверждения вторым кадром
         self._black_count = 0
         self._warned_black = False
+        self._sig_seen = None           # отпечаток таблицы «Истории» на прошлом кадре
+        self._sig_synced = None         # отпечаток, который уже сверен с журналом
+        self._live = None               # данные текущего матча: тайминги предметов, добивания к 10:00
         self._stop = threading.Event()
 
     # ---------- GSI ----------
+
+    def _track_live(self, match_id: str, payload: dict):
+        """Во время матча запоминаем, когда впервые появился каждый предмет, и добивания к 10:00."""
+        if not self._live or self._live["match_id"] != match_id:
+            self._live = {"match_id": match_id, "first_seen": {}, "lh10": None, "items": None, "hero": None}
+        live = self._live
+        clock = (payload.get("map") or {}).get("clock_time")
+        if payload.get("items"):
+            items = _items(payload)
+            live["items"] = items
+            if clock is not None:
+                for n in items["inventory"] + items["backpack"] + items["stash"] + [items["neutral"]]:
+                    if n and n not in live["first_seen"]:
+                        live["first_seen"][n] = clock
+        if payload.get("hero"):
+            live["hero"] = payload["hero"]
+        lh = (payload.get("player") or {}).get("last_hits")
+        if live["lh10"] is None and clock is not None and clock >= 600 and lh is not None:
+            live["lh10"] = lh
+
+    def _build_details(self, match_id: str, payload: dict) -> dict:
+        live = self._live if self._live and self._live["match_id"] == match_id else None
+        items = _items(payload) if payload.get("items") else (live or {}).get("items")
+        hero = payload.get("hero") or (live or {}).get("hero") or {}
+        details = {}
+        if items:
+            details["items"] = items["inventory"]
+            details["backpack"] = items["backpack"]
+            details["neutral"] = items["neutral"]
+        if live:
+            timings = [{"item": n, "t": t} for n, t in live["first_seen"].items()
+                       if n not in CONSUMABLES and not n.startswith("recipe_") and t is not None and t > 0]
+            details["item_timings"] = sorted(timings, key=lambda x: x["t"])
+            details["lh10"] = live["lh10"]
+        if "aghanims_scepter" in hero or "aghanims_shard" in hero:
+            details["scepter"] = bool(hero.get("aghanims_scepter"))
+            details["shard"] = bool(hero.get("aghanims_shard"))
+        talents = [bool(hero.get(f"talent_{i}")) for i in range(1, 9)]
+        if any(f"talent_{i}" in hero for i in range(1, 9)):
+            details["talents"] = talents
+        if "level" in hero:
+            details["level"] = hero.get("level")
+        return details
 
     def on_gsi(self, payload: dict):
         if self.last_gsi_at is None:
@@ -58,6 +134,7 @@ class Tracker:
             return
         if state != POST_GAME:
             self.in_match = True
+            self._track_live(match_id, payload)
             return
         self.in_match = False
         win_team = game.get("win_team")
@@ -87,9 +164,12 @@ class Tracker:
                 "rating_after": None,
                 "confidence": None,
                 "double": None,
+                "mode": None,
             }
+            match.update(self._build_details(match_id, payload))
             self.store.matches.append(match)
             self.store.save()
+        self._live = None
         result = "Победа" if match["won"] else "Поражение"
         self.log(f"[матч] {match_id}: {result}, {match['hero']} "
                  f"{match['kills']}/{match['deaths']}/{match['assists']} — "
@@ -97,8 +177,11 @@ class Tracker:
 
     # ---------- распознавание ----------
 
+    def needs_rating(self) -> bool:
+        return self.store.rating is None or bool(self.store.pending())
+
     def needs_scan(self) -> bool:
-        return not self.in_match and (self.store.rating is None or bool(self.store.pending()))
+        return not self.in_match
 
     def scan_once(self) -> dict | None:
         frame = self.grab_frame()
@@ -112,7 +195,25 @@ class Tracker:
                 self._warned_black = True
             return None
         self._black_count = 0
-        reading = ocr.read(frame)
+        loc = ocr.locate(frame)
+        if not loc:
+            self._candidate = None
+            self._sig_seen = None
+            return None
+        frame, anchor = loc
+
+        # Таблицу сверяем, когда она изменилась и не меняется два кадра подряд (дорисовалась).
+        sig = ocr.table_signature(frame, anchor)
+        if sig == self._sig_seen and sig != self._sig_synced:
+            try:
+                self.sync_history(ocr.read_history(frame, anchor))
+            finally:
+                self._sig_synced = sig
+        self._sig_seen = sig
+
+        if not self.needs_rating():
+            return None
+        reading = ocr.read_rating(frame, anchor)
         if not reading:
             self._candidate = None
             return None
@@ -124,6 +225,61 @@ class Tracker:
         self._candidate = None
         self.accept(reading["rating"], reading["confidence"])
         return reading
+
+    # ---------- сверка с таблицей «Истории» ----------
+
+    def sync_history(self, rows: list) -> None:
+        """Тип игры для записанных матчей и матчи, сыгранные без трекера."""
+        if not rows:
+            return
+        added = typed = 0
+        with self.store.lock:
+            matches = self.store.matches
+            for row in rows:
+                if row["won"] is None:
+                    continue
+                started = row["started"]
+                ended_est = started + timedelta(seconds=row["duration_sec"] or 0)
+                key = f"h-{started:%Y%m%d%H%M}-{row['hero']}"
+
+                # Свой матч: тот же герой и время окончания рядом с расчётным.
+                best, best_gap = None, None
+                for m in matches:
+                    if m.get("hero") != row["hero"] or m.get("history_key") not in (None, key):
+                        continue
+                    gap = abs(_local_naive(m["ended_at"]) - ended_est)
+                    if gap <= HISTORY_MATCH_WINDOW and (best_gap is None or gap < best_gap):
+                        best, best_gap = m, gap
+                if best is not None:
+                    changed = best.get("history_key") != key or best.get("mode") != row["mode"]
+                    best["history_key"] = key
+                    best["mode"] = row["mode"]
+                    best.setdefault("started_at", started.astimezone().isoformat(timespec="seconds"))
+                    if best["status"] == "pending" and row["mode"] == "turbo":
+                        best["status"] = "unrated"     # турбо рейтинг не меняет — не ждём цифру
+                    typed += changed
+                    continue
+
+                # Матч, которого нет в журнале: трекер был выключен или это игра до установки.
+                matches.append({
+                    "match_id": key,
+                    "history_key": key,
+                    "source": "history",
+                    "started_at": started.astimezone().isoformat(timespec="seconds"),
+                    "ended_at": ended_est.astimezone().isoformat(timespec="seconds"),
+                    "hero": row["hero"],
+                    "won": row["won"],
+                    "duration_sec": row["duration_sec"],
+                    "mode": row["mode"],
+                    "status": "history",
+                    "delta": None,
+                })
+                added += 1
+            if added or typed:
+                matches.sort(key=lambda m: _local_naive(m["ended_at"]))
+                self.store.save()
+        if added:
+            self.log(f"[история] добавлено матчей из «Истории»: {added}")
 
     def accept(self, rating: int, confidence: int | None):
         with self.store.lock:
@@ -208,14 +364,15 @@ class Tracker:
     # ---------- цикл ----------
 
     def run_scanner(self):
-        interval = float(self.cfg["scan_interval_sec"])
+        fast = float(self.cfg["scan_interval_sec"])
         while not self._stop.is_set():
             if self.needs_scan():
                 try:
                     self.scan_once()
                 except Exception as exc:
                     self.log(f"[экран] ошибка: {exc!r}")
-            self._stop.wait(interval)
+            # Ждём цифру — смотрим часто; иначе только сверяем таблицу, реже.
+            self._stop.wait(fast if self.needs_rating() or self._sig_seen != self._sig_synced else IDLE_SCAN_SEC)
 
     def stop(self):
         self._stop.set()
@@ -224,4 +381,4 @@ class Tracker:
         rated = [m for m in self.store.matches if m["status"] == "exact"]
         r = self.store.rating
         head = f"Рейтинг: {r['value']}" if r else "Рейтинг ещё не прочитан"
-        return f"{head} · матчей записано: {len(self.store.matches)} · с точным ИР: {len(rated)}"
+        return f"{head}, матчей в журнале: {len(self.store.matches)}, с точным ИР: {len(rated)}"
