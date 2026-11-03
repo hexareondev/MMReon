@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 import urllib.request
@@ -74,10 +75,26 @@ def _apply_git() -> dict:
 
 # ---------- релизы GitHub ----------
 
+def _ssl_context() -> ssl.SSLContext:
+    """Сертификаты для HTTPS. В собранном .exe Python не всегда находит хранилище Windows,
+    поэтому берём набор из certifi (он кладётся в сборку), а если его нет — системный."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+
+def _open(url: str, timeout: int, accept: str | None = None):
+    headers = {"User-Agent": "MMReon-updater"}
+    if accept:
+        headers["Accept"] = accept
+    return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=timeout,
+                                  context=_ssl_context())
+
+
 def _latest_release() -> dict:
-    req = urllib.request.Request(API_LATEST, headers={"User-Agent": "MMReon-updater",
-                                                     "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with _open(API_LATEST, 15, "application/vnd.github+json") as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -101,8 +118,7 @@ def _apply_release(info: dict) -> dict:
         shutil.rmtree(UPDATE_DIR, ignore_errors=True)
     UPDATE_DIR.mkdir(parents=True)
     archive = UPDATE_DIR / "MMReon.zip"
-    req = urllib.request.Request(url, headers={"User-Agent": "MMReon-updater"})
-    with urllib.request.urlopen(req, timeout=60) as resp, open(archive, "wb") as out:
+    with _open(url, 60) as resp, open(archive, "wb") as out:
         shutil.copyfileobj(resp, out, length=1 << 20)
     new_dir = UPDATE_DIR / "new"
     with zipfile.ZipFile(archive) as z:

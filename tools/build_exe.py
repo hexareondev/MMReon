@@ -54,6 +54,7 @@ def main():
         "--add-data", f"{pkg / 'assets'}{sep}mmreon/assets",
         "--hidden-import", "pystray._win32",
         "--collect-submodules", "webview",
+        "--collect-data", "certifi",          # сертификаты HTTPS для проверки обновлений
         "--paths", str(ROOT),
     ]
     print("Сборка… это займёт пару минут.")
