@@ -2,9 +2,12 @@
 import json
 import os
 import secrets
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# В собранном .exe данные лежат рядом с программой, а ресурсы — внутри сборки.
+FROZEN = getattr(sys, "frozen", False)
+ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 CONFIG_PATH = DATA_DIR / "config.json"
@@ -22,9 +25,13 @@ DEFAULTS = {
     "widget_anchor": True,           # ставить виджет на панель профиля Доты, клики проходят в игру
     "widget_x": 24,                  # положение виджета на экране (запоминается при перетаскивании)
     "widget_y": 120,
+    "notifications": True,           # уведомление Windows, когда записано изменение рейтинга
+    "close_to_tray": True,           # крестик прячет окно в трей, выход — из меню значка
+    "goal": None,                    # цель по рейтингу: {"rating", "date", "start", "set_at"}
 }
 
 _WINDOWS_TESSERACT = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+_BUNDLED_TESSERACT = ROOT / "tesseract" / "tesseract.exe"     # кладётся рядом при сборке .exe
 
 
 def load() -> dict:
@@ -36,7 +43,9 @@ def load() -> dict:
     if not cfg["gsi_token"]:
         cfg["gsi_token"] = secrets.token_hex(12)
         changed = True
-    if not cfg["tesseract_cmd"] and os.name == "nt" and _WINDOWS_TESSERACT.exists():
+    if _BUNDLED_TESSERACT.exists():
+        cfg["tesseract_cmd"] = str(_BUNDLED_TESSERACT)     # своя копия в сборке важнее установленной
+    elif not cfg["tesseract_cmd"] and os.name == "nt" and _WINDOWS_TESSERACT.exists():
         cfg["tesseract_cmd"] = str(_WINDOWS_TESSERACT)
         changed = True
     if changed:

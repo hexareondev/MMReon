@@ -1,6 +1,7 @@
 """MMReon — запуск трекера.
 
     MMReon.pyw               — двойной клик: окно и виджет без консоли
+    MMReon.pyw --tray        — сразу свернуть в трей (так запускает автозагрузка)
     python run.py            — то же, но с консолью (удобно для отладки)
     python run.py --no-ui    — только консоль
 """
@@ -8,6 +9,7 @@ import ctypes
 import os
 import sys
 import threading
+import time
 from datetime import datetime
 
 from mmreon import config, gsi_install, ocr
@@ -43,9 +45,14 @@ def main():
         return local.grabber.grab()
 
     tracker = Tracker(store, grab, cfg, log=log)
-    try:
-        server = start_server(cfg["gsi_port"], cfg["gsi_token"], tracker.on_gsi)
-    except OSError:
+    server = None
+    for attempt in range(6):    # после обновления старая копия может ещё закрываться
+        try:
+            server = start_server(cfg["gsi_port"], cfg["gsi_token"], tracker.on_gsi)
+            break
+        except OSError:
+            time.sleep(1)
+    if server is None:
         fail("MMReon уже запущен (или порт занят другой программой).")
 
     log("MMReon запущен. " + tracker.summary())
@@ -56,13 +63,15 @@ def main():
     scanner = threading.Thread(target=tracker.run_scanner, daemon=True, name="scanner")
     scanner.start()
 
+    app = None
     try:
         if no_ui:
             log("Ctrl+C — выход.")
             scanner.join()
         else:
             from mmreon.app import App
-            App(tracker, cfg).run()
+            app = App(tracker, cfg)
+            app.run(start_hidden="--tray" in sys.argv)
     except KeyboardInterrupt:
         pass
     except Exception as exc:
@@ -70,7 +79,12 @@ def main():
     finally:
         tracker.stop()
         server.shutdown()
+        server.server_close()
         log("Остановлено. " + tracker.summary())
+        if app is not None and app.restart_requested:
+            from mmreon import updater
+            log("Перезапуск после обновления")
+            updater.spawn_restart()
 
 
 if __name__ == "__main__":

@@ -6,7 +6,8 @@
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+# В собранном .exe папка данных — рядом с MMReon.exe.
+ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 (ROOT / "data").mkdir(exist_ok=True)
 log = open(ROOT / "data" / "mmreon.log", "a", encoding="utf-8", buffering=1)

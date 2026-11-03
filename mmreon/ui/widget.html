@@ -54,8 +54,10 @@ function render(s) {
     w.style.setProperty("--tier", TIER_COLORS[s.medal.index]);
     icon = `<div style="justify-self:center">${medalHTML(s.medal, 58)}</div>`;
     name = esc(s.medal.name);
+    const tilt = s.streak && s.streak.kind === "loss" && s.streak.count >= 3;
     sub = pending ? '<span class="est">Откройте «Историю»</span>'
-                  : `Рейтинг <span class="num">${s.rating.value.toLocaleString("ru-RU")}</span>`;
+        : tilt ? `<span class="loss">${s.streak.count} ${plural(s.streak.count, "поражение", "поражения", "поражений")} подряд</span>`
+        : `Рейтинг <span class="num">${s.rating.value.toLocaleString("ru-RU")}</span>`;
   } else {
     w.style.removeProperty("--tier");
     icon = '<div class="ph" aria-hidden="true">?</div>';
@@ -80,7 +82,7 @@ function onMedalIconsBroken() { if (lastState) render(lastState); }
 async function tick() {
   try {
     const s = await pywebview.api.get_state();
-    const json = JSON.stringify([s.rating, s.medal, s.session.wins, s.session.losses, s.session.delta, s.session.estimate, s.session.pending]);
+    const json = JSON.stringify([s.rating, s.medal, s.session.wins, s.session.losses, s.session.delta, s.session.estimate, s.session.pending, s.streak]);
     if (json !== last) { last = json; render(s); }
   } catch (e) { console.error(e); }
 }

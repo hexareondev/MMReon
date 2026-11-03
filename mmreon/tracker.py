@@ -64,6 +64,7 @@ class Tracker:
         self.grab_frame = grab_frame    # функция без аргументов → кадр BGR или None
         self.cfg = cfg
         self.log = log
+        self.on_rated = None            # вызывается, когда изменение рейтинга записано: (матч, было, стало)
         self.in_match = False
         self.last_gsi_at = None         # time.time() последнего пакета от Доты
         self._candidate = None          # прошлое прочтение, ждём подтверждения вторым кадром
@@ -332,6 +333,12 @@ class Tracker:
 
             self.store.rating = new_state
             self.store.save()
+            rated = pending[-1]
+        if self.on_rated:
+            try:
+                self.on_rated(rated, prev["value"], rating)
+            except Exception as exc:
+                self.log(f"[уведомление] ошибка: {exc!r}")
 
     def _fill(self, m, before, after, confidence):
         delta = after - before
