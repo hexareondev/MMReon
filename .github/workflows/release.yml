@@ -13,6 +13,11 @@ on:
 permissions:
   contents: write
 
+env:
+  # Консоль Windows по умолчанию не в UTF-8 — без этого падает любой print с кириллицей.
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
 jobs:
   build:
     runs-on: windows-latest
