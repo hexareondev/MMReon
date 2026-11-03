@@ -9,7 +9,7 @@ from pathlib import Path
 
 import webview
 
-from . import __version__, config, shortcuts, state, updater, winui
+from . import __version__, config, gsi_install, shortcuts, state, updater, winui
 from .heroes import name as hero_name
 from .screen import WINDOW_TITLE, dota_client_rect, window_status
 from .tray import Tray
@@ -42,7 +42,34 @@ class Api:
         st = state.build(self._app.tracker, self._app.dota_running)
         st["update"] = self._app.update_info
         st["version"] = __version__
+        st["setup"] = self._app.setup_state(st)
         return st
+
+    def choose_steam_folder(self):
+        """Диалог выбора папки, если Дота не нашлась сама. Возвращает {'ok', 'message'}."""
+        dialog = getattr(webview, "FOLDER_DIALOG", None)
+        if dialog is None and hasattr(webview, "FileDialog"):
+            dialog = webview.FileDialog.FOLDER
+        result = self._app.main.create_file_dialog(dialog)
+        if not result:
+            return {"ok": False, "message": ""}
+        folder = result[0] if isinstance(result, (list, tuple)) else result
+        path = gsi_install.install_into(self._app.cfg, Path(folder))
+        if not path:
+            return {"ok": False, "message": "В этой папке нет Доты. Выберите библиотеку Steam, где установлена Dota 2."}
+        self._app.cfg["dota_cfg_dir"] = str(path.parent.parent)
+        config.save(self._app.cfg)
+        self._app.invalidate_setup()
+        return {"ok": True, "message": "Конфиг установлен. Перезапустите Доту."}
+
+    def install_gsi(self):
+        path = gsi_install.install(self._app.cfg)
+        self._app.invalidate_setup()
+        return {"ok": bool(path), "message": "Конфиг установлен. Перезапустите Доту." if path else "Дота не найдена"}
+
+    def dismiss_setup(self):
+        self._app.cfg["setup_dismissed"] = True
+        config.save(self._app.cfg)
 
     def toggle_double(self, match_id):
         return self._app.tracker.toggle_double(str(match_id))
@@ -218,6 +245,33 @@ class App:
         config.save(self.cfg)
         return self.cfg["goal"]
 
+    # ---------- первая настройка ----------
+
+    def invalidate_setup(self):
+        self._setup_cache = None
+
+    def setup_state(self, st: dict) -> dict | None:
+        """Чек-лист первой настройки. None — всё готово или пользователь его скрыл."""
+        if self.cfg.get("setup_dismissed"):
+            return None
+        cache = getattr(self, "_setup_cache", None)
+        if not cache or time.time() - cache[0] > 30:     # папку Доты проверяем не чаще раза в 30 секунд
+            cache = (time.time(), gsi_install.status(self.cfg))
+            self._setup_cache = cache
+        gsi = cache[1]
+        connected = self.tracker.last_gsi_at is not None
+        has_rating = bool(st.get("rating"))
+        worked_before = any(m.get("status") == "exact" for m in self.tracker.store.matches)
+        if worked_before or (gsi["installed"] and connected and has_rating):
+            if not self.cfg.get("setup_done"):
+                self.cfg["setup_done"] = True
+                config.save(self.cfg)
+            return None
+        if self.cfg.get("setup_done"):
+            return None     # однажды всё заработало — не показываем снова
+        return {"dota_found": gsi["dota_found"], "installed": gsi["installed"], "connected": connected,
+                "black_frame": bool(getattr(self.tracker, "_warned_black", False)), "has_rating": has_rating}
+
     # ---------- уведомления ----------
 
     def _on_rated(self, match: dict, before: int | None, after: int):
@@ -249,19 +303,26 @@ class App:
     def apply_update(self):
         res = updater.apply()
         if res.get("ok"):
-            self.restart_requested = True
+            self.restart_requested = res
             threading.Timer(1.5, self.quit).start()   # дать окну показать сообщение
         return res
 
     def _check_updates_later(self):
-        time.sleep(20)          # не мешаем запуску
-        try:
-            self.check_updates()
-            info = self.update_info
-            if info.get("available"):
-                self.tray.notify("Доступно обновление MMReon", "Откройте окно, чтобы обновить одной кнопкой")
-        except Exception:
-            pass
+        """Первая проверка через 20 секунд после запуска, потом раз в 6 часов."""
+        if self._stop.wait(20):
+            return
+        notified = None
+        while True:
+            try:
+                info = self.check_updates()
+                key = info.get("version") or info.get("count")
+                if info.get("available") and key != notified:
+                    notified = key
+                    self.tray.notify("Доступно обновление MMReon", "Откройте окно, чтобы обновить одной кнопкой")
+            except Exception:
+                pass
+            if self._stop.wait(6 * 3600):
+                return
 
     # ---------- виджет ----------
 

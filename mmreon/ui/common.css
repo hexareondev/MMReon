@@ -46,3 +46,4 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .medal.fresh::before { animation: aura 1.6s ease-out 1; }
   @keyframes aura { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

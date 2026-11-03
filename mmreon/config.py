@@ -28,6 +28,9 @@ DEFAULTS = {
     "notifications": True,           # уведомление Windows, когда записано изменение рейтинга
     "close_to_tray": True,           # крестик прячет окно в трей, выход — из меню значка
     "goal": None,                    # цель по рейтингу: {"rating", "date", "start", "set_at"}
+    "dota_cfg_dir": "",              # папка cfg Доты, если её указали вручную
+    "setup_done": False,             # первая настройка пройдена — чек-лист больше не показываем
+    "setup_dismissed": False,
 }
 
 _WINDOWS_TESSERACT = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")

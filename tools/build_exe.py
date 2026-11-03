@@ -8,6 +8,7 @@
 поэтому отдельно его ставить не нужно. Данные (журнал, настройки) создаются в папке data
 рядом с MMReon.exe.
 """
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -58,16 +59,43 @@ def main():
         target = out / "tesseract"
         if target.exists():
             shutil.rmtree(target)
-        # Только сам движок и английские данные: обучающие утилиты не нужны.
+        # Только сам движок и английские данные: обучающие утилиты и другие языки не нужны.
         shutil.copytree(tess, target, ignore=shutil.ignore_patterns(
             "*training*.exe", "lstm*.exe", "text2image.exe", "*.html", "unicharset*.exe", "wordlist2dawg.exe",
             "ambiguous_words.exe", "classifier_tester.exe", "cntraining.exe", "combine_*.exe", "dawg2wordlist.exe",
             "merge_unicharsets.exe", "mftraining.exe", "set_unicharset_properties.exe", "shapeclustering.exe",
-            "tesseract-uninstall.exe"))
+            "tesseract-uninstall.exe", "tessdata", "doc"))
+        tessdata = target / "tessdata"
+        tessdata.mkdir(exist_ok=True)
+        for name in ("eng.traineddata", "osd.traineddata"):
+            if (tess / "tessdata" / name).exists():
+                shutil.copy2(tess / "tessdata" / name, tessdata / name)
+        if (tess / "tessdata" / "configs").exists():
+            shutil.copytree(tess / "tessdata" / "configs", tessdata / "configs")
         print(f"Tesseract скопирован из {tess}")
     else:
         print("Tesseract не найден — положите его вручную в dist/MMReon/tesseract/")
+        if os.environ.get("CI"):
+            sys.exit(1)
+    (out / "THIRD_PARTY_NOTICES.txt").write_text(NOTICES, encoding="utf-8")
     print(f"Готово: {out / 'MMReon.exe'}")
+
+
+NOTICES = """MMReon использует сторонние программы и библиотеки:
+
+- Tesseract OCR (папка tesseract) — Apache License 2.0, https://github.com/tesseract-ocr/tesseract
+  Сборка для Windows: UB Mannheim, https://github.com/UB-Mannheim/tesseract
+- pywebview — BSD-3-Clause, https://github.com/r0x0r/pywebview
+- OpenCV — Apache License 2.0, https://opencv.org
+- pystray — LGPL-3.0, https://github.com/moses-palmer/pystray
+- Pillow — HPND, https://python-pillow.org
+- mss — MIT, https://github.com/BoboTiG/python-mss
+- pytesseract — Apache License 2.0, https://github.com/madmaze/pytesseract
+- Python — PSF License, https://www.python.org
+
+Dota 2 — товарный знак Valve Corporation. MMReon не связан с Valve.
+Иконки медалей загружаются с OpenDota, иконки героев и предметов — с серверов Steam.
+"""
 
 
 if __name__ == "__main__":

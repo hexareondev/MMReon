@@ -119,6 +119,7 @@
   .opacity input { width: 120px; accent-color: var(--bronze); }
   .opacity output { min-width: 40px; color: var(--text); }
   .update { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-2); }
+  .update .link { align-self: flex-start; }
   .update ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
   .btn { align-self: flex-start; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--seam);
          background: var(--stone-2); color: var(--text); font-weight: 600; }
@@ -128,6 +129,25 @@
   .btn:disabled { opacity: .55; cursor: progress; }
   .link { border: 0; background: none; color: var(--bronze); padding: 0; min-height: 32px; text-decoration: underline; text-underline-offset: 3px; }
   .foot { margin: 0; padding: 0 4px; font-size: 13px; color: var(--muted); }
+
+  /* Первая настройка */
+  .setup { border-color: #57461F; background: linear-gradient(180deg, #221E16, var(--stone)); }
+  .setup p.lead { margin: 6px 0 4px; color: var(--text-2); font-size: 14px; max-width: 70ch; }
+  .steps { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; }
+  .step { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+          padding: 12px 0; border-top: 1px solid #2E2A20; }
+  .step:first-child { border-top: 0; }
+  .mark { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+          font-family: var(--display); font-weight: 700; font-size: 13px; border: 1.5px solid var(--seam); color: var(--muted); }
+  .step.ok .mark { background: var(--radiant-deep); border-color: var(--radiant); color: var(--radiant); }
+  .step.bad .mark { border-color: var(--dire); color: var(--dire); }
+  .step h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  .step p { margin: 3px 0 0; font-size: 13px; color: var(--muted); max-width: 72ch; }
+  .step code { font-family: Consolas, monospace; font-size: 13px; color: var(--est); background: #1A170F;
+               padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+  .step .act { display: flex; gap: 8px; align-items: center; }
+  .setup .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+  .setup-msg { font-size: 13px; color: var(--text-2); }
 
   /* Цель */
   .goal-figure { font-family: var(--display); font-stretch: condensed; font-weight: 700; font-size: 34px; line-height: 1.1; margin-top: 10px; font-variant-numeric: tabular-nums; }
@@ -248,6 +268,7 @@
 </head>
 <body>
 <div class="wrap">
+  <section class="panel setup" id="setup" aria-label="Первая настройка" hidden></section>
   <section class="hero" id="hero" aria-label="Текущий рейтинг"></section>
 
   <div class="duo">
@@ -636,6 +657,53 @@ function renderHeroes(list) {
   more.textContent = heroesAll ? "Свернуть" : `Все герои (${list.length})`;
 }
 
+// ---------- первая настройка ----------
+let setupMessage = "";
+function renderSetup(s) {
+  const el = document.getElementById("setup"), st = s.setup;
+  el.hidden = !st;
+  if (!st) return;
+  const step = (ok, bad, num, title, text, action = "") =>
+    `<li class="step ${ok ? "ok" : bad ? "bad" : ""}"><span class="mark" aria-hidden="true">${ok ? "✓" : num}</span>
+      <div><h3>${title}${ok ? '<span class="visually-hidden"> — готово</span>' : ""}</h3><p>${text}</p></div>
+      <div class="act">${ok ? "" : action}</div></li>`;
+  const gsiText = st.installed ? "Конфиг MMReon лежит в папке Доты — через него игра сообщает о матчах."
+    : st.dota_found ? "Дота найдена, но конфига MMReon в ней нет."
+    : "Не нашёл Доту в библиотеках Steam. Укажите папку библиотеки, где установлена Dota 2.";
+  const gsiAction = st.dota_found ? '<button class="btn" data-setup="install">Установить</button>'
+                                  : '<button class="btn" data-setup="folder">Указать папку…</button>';
+  const html = `
+    <div class="panel-head"><h2>Первая настройка</h2><button class="link" data-setup="dismiss">Скрыть</button></div>
+    <p class="lead">Четыре шага — и MMReon будет сам записывать каждый матч и точное изменение рейтинга.</p>
+    <ol class="steps">
+      ${step(st.installed, !st.dota_found, 1, "Конфиг для Доты", gsiText, gsiAction)}
+      ${step(st.connected, false, 2, "Параметр запуска в Steam",
+        "В Steam: Dota 2 → Свойства → Общие → Параметры запуска — впишите <code>-gamestateintegration</code> и перезапустите Доту. Галочка появится, когда Дота откликнется.",
+        '<button class="btn" data-setup="copy">Скопировать</button>')}
+      ${step(st.connected && !st.black_frame, st.black_frame, 3, "Режим «Оконный без рамки»",
+        st.black_frame ? "MMReon видит вместо Доты чёрный экран. В Доте: Настройки → Видео → Режим отображения → «Оконный без рамки»."
+                       : "В Доте: Настройки → Видео → Режим отображения → «Оконный без рамки». В полноэкранном режиме Windows не даёт прочитать рейтинг с экрана.")}
+      ${step(st.has_rating, false, 4, "Рейтинг",
+        "Откройте в Доте «Профиль → История». MMReon запомнит текущий рейтинг, и дальше всё пойдёт само.")}
+    </ol>
+    ${setupMessage ? `<p class="setup-msg" aria-live="polite">${esc(setupMessage)}</p>` : ""}
+    <p class="note">Сейчас поддерживается русский язык клиента Доты и экран 16:9 (например, 1920×1080).</p>`;
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+}
+document.getElementById("setup").addEventListener("click", async e => {
+  const b = e.target.closest("[data-setup]");
+  if (!b) return;
+  const a = b.dataset.setup;
+  if (a === "dismiss") { await pywebview.api.dismiss_setup(); lastJson = ""; tick(); return; }
+  if (a === "copy") {
+    try { await navigator.clipboard.writeText("-gamestateintegration"); setupMessage = "Скопировано: -gamestateintegration"; }
+    catch { setupMessage = "Не удалось скопировать — впишите -gamestateintegration вручную"; }
+  }
+  if (a === "install") setupMessage = (await pywebview.api.install_gsi()).message;
+  if (a === "folder") setupMessage = (await pywebview.api.choose_steam_folder()).message;
+  lastJson = ""; tick();
+});
+
 // ---------- цель ----------
 let goalEditing = false;
 function goalPresets(s) {
@@ -744,6 +812,11 @@ function renderUpdate(s) {
     html += `<div>Эта копия обновляется вручную: скачайте новую версию на GitHub.</div><button class="btn" data-update="open" data-url="${esc(u.url)}">Открыть страницу загрузок</button>`;
   } else if (u.error) {
     html += `<div class="loss">${esc(u.error)}</div><button class="btn" data-update="check">Проверить ещё раз</button>`;
+  } else if (u.available && u.mode === "release") {
+    html += `<div>Доступна версия ${esc(u.version)}${u.size_mb ? `, ${String(u.size_mb).replace(".", ",")} МБ` : ""}</div>
+      ${u.changes && u.changes.length ? `<ul>${u.changes.map(c => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}
+      <button class="btn primary" data-update="apply">Скачать и перезапустить</button>
+      <button class="link" data-update="open" data-url="${esc(u.url)}">Что нового</button>`;
   } else if (u.available) {
     html += `<div>Доступно обновление: ${u.count} ${plural(u.count, "изменение", "изменения", "изменений")}</div>
       ${u.changes && u.changes.length ? `<ul>${u.changes.map(c => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}
@@ -760,7 +833,7 @@ document.getElementById("update").addEventListener("click", async e => {
   if (a === "open") { pywebview.api.open_url(b.dataset.url); return; }
   updateBusy = true;
   b.disabled = true;
-  b.textContent = a === "apply" ? "Обновляю…" : "Проверяю…";
+  b.textContent = a === "apply" ? "Скачиваю и обновляю…" : "Проверяю…";
   try {
     if (a === "check") { await pywebview.api.check_updates(); updateMessage = ""; }
     if (a === "apply") { const res = await pywebview.api.apply_update(); updateMessage = res.message; }
@@ -773,6 +846,7 @@ document.getElementById("update").addEventListener("click", async e => {
 
 function render(s) {
   lastState = s;
+  renderSetup(s);
   renderHero(s);
   renderSession(s);
   renderWeek(s);

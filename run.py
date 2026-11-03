@@ -56,9 +56,9 @@ def main():
         fail("MMReon уже запущен (или порт занят другой программой).")
 
     log("MMReon запущен. " + tracker.summary())
-    note = gsi_install.ensure_current(cfg)
-    if note:
-        log(note)
+    for note in (gsi_install.auto_install(cfg), gsi_install.ensure_current(cfg)):
+        if note:
+            log(note)
     log(f"Жду данные от Доты на 127.0.0.1:{cfg['gsi_port']}.")
     scanner = threading.Thread(target=tracker.run_scanner, daemon=True, name="scanner")
     scanner.start()
@@ -84,7 +84,7 @@ def main():
         if app is not None and app.restart_requested:
             from mmreon import updater
             log("Перезапуск после обновления")
-            updater.spawn_restart()
+            updater.spawn_restart(app.restart_requested if isinstance(app.restart_requested, dict) else None)
 
 
 if __name__ == "__main__":

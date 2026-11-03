@@ -1,0 +1,72 @@
+# Сборка MMReon.exe и публикация релиза.
+# Запускается, когда в репозиторий отправлен тег вида v0.3.0:
+#   git tag v0.3.0
+#   git push origin v0.3.0
+# Версия в теге должна совпадать с __version__ в mmreon/__init__.py.
+name: Сборка релиза
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Зависимости
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Tesseract OCR
+        run: choco install tesseract --no-progress -y
+
+      - name: Проверка версии
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $code = python -c "import mmreon; print(mmreon.__version__)"
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          if ($code -ne $tag) { Write-Error "Тег $tag не совпадает с версией в коде $code"; exit 1 }
+
+      - name: Сборка
+        run: python tools/build_exe.py
+
+      - name: Проверка сборки
+        shell: pwsh
+        run: |
+          foreach ($f in "dist/MMReon/MMReon.exe", "dist/MMReon/tesseract/tesseract.exe", "dist/MMReon/tesseract/tessdata/eng.traineddata") {
+            if (-not (Test-Path $f)) { Write-Error "Нет файла $f"; exit 1 }
+          }
+
+      - name: Архив
+        shell: pwsh
+        run: |
+          $name = "MMReon-${{ github.ref_name }}.zip"
+          # Файлы прямо в корне архива — распаковал в папку, и всё на месте.
+          Compress-Archive -Path dist/MMReon/* -DestinationPath $name
+          "ZIP=$name" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Релиз
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP }}
+          generate_release_notes: true
+
+      - name: Сборка без релиза (ручной запуск)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: MMReon
+          path: ${{ env.ZIP }}
