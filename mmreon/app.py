@@ -192,6 +192,7 @@ class App:
     def show_main(self):
         self.main.show()
         self.main.restore()
+        winui.bring_to_front(MAIN_TITLE)    # поверх остальных окон, а не просто «где-то за ними»
 
     def quit(self):
         self.quitting = True

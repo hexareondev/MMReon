@@ -140,6 +140,18 @@ def overlay_style(title: str, click_through: bool, opacity: float) -> bool:
     return True
 
 
+def bring_to_front(title: str) -> bool:
+    """Разворачивает окно, если оно свёрнуто, и делает его активным."""
+    hwnd = find(title)
+    if not hwnd:
+        return False
+    SW_RESTORE = 9
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, SW_RESTORE)
+    user32.SetForegroundWindow(hwnd)
+    return True
+
+
 def place(title: str, x: int, y: int, w: int, h: int) -> bool:
     """Ставит окно поверх остальных точно в указанный прямоугольник (физические пиксели)."""
     hwnd = find(title)
