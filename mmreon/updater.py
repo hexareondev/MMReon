@@ -134,19 +134,26 @@ def _apply_release(info: dict) -> dict:
         if not inner:
             return {"ok": False, "message": "В архиве обновления нет MMReon.exe"}
         src = inner[0]
-    bat = DATA_DIR / "mmreon_update.bat"
-    bat.write_text(
-        "@echo off\r\n"
-        "chcp 65001 >nul\r\n"
-        ":wait\r\n"
-        f'tasklist /FI "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul && (timeout /t 1 /nobreak >nul & goto wait)\r\n'
-        f'robocopy "{src}" "{ROOT}" /E /XD data /R:3 /W:1 /NFL /NDL /NJH /NJS /NP >nul\r\n'
-        f'start "" "{ROOT / "MMReon.exe"}"\r\n'
-        f'rd /s /q "{UPDATE_DIR}"\r\n'
-        '(goto) 2>nul & del "%~f0"\r\n',
-        encoding="utf-8")
+    # Скрипт подмены файлов: ждёт, пока эта копия закроется, копирует новые файлы
+    # поверх старых (папку data не трогает), запускает MMReon и убирает за собой.
+    # PowerShell, а не .bat: ему не нужны консольные утилиты, и он работает полностью скрыто.
+    def q(path) -> str:
+        return "'" + str(path).replace("'", "''") + "'"
+
+    script = DATA_DIR / "mmreon_update.ps1"
+    script.write_text(
+        "$ErrorActionPreference = 'SilentlyContinue'\r\n"
+        f"Wait-Process -Id {os.getpid()} -Timeout 120\r\n"
+        f"robocopy {q(src)} {q(ROOT)} /E /XD data /R:3 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null\r\n"
+        f"Start-Process -FilePath {q(ROOT / 'MMReon.exe')} -WorkingDirectory {q(ROOT)}\r\n"
+        f"Remove-Item -LiteralPath {q(UPDATE_DIR)} -Recurse -Force\r\n"
+        "Remove-Item -LiteralPath $PSCommandPath -Force\r\n",
+        encoding="utf-8-sig")      # с BOM — иначе Windows PowerShell 5 исказит русские буквы в путях
+    old_bat = DATA_DIR / "mmreon_update.bat"
+    if old_bat.exists():
+        old_bat.unlink()
     return {"ok": True, "message": f"Версия {info.get('version')} скачана. MMReon перезапустится.",
-            "restart": "script", "script": str(bat)}
+            "restart": "script", "script": str(script)}
 
 
 # ---------- общее ----------
@@ -195,9 +202,12 @@ def restart_command() -> list[str]:
 
 def spawn_restart(result: dict | None = None):
     """Запуск после выхода: новая копия через git — сразу, обновление .exe — скриптом подмены файлов."""
-    detached = 0x00000008 | 0x00000200 if os.name == "nt" else 0   # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
     if result and result.get("restart") == "script":
-        subprocess.Popen(["cmd", "/c", result["script"]], cwd=str(DATA_DIR),
-                         creationflags=detached | CREATE_NO_WINDOW, close_fds=True)
+        # Только CREATE_NO_WINDOW: вместе с DETACHED_PROCESS Windows его игнорирует,
+        # и каждая команда скрипта открывала бы своё консольное окно.
+        subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                          "-WindowStyle", "Hidden", "-File", result["script"]],
+                         cwd=str(DATA_DIR), creationflags=CREATE_NO_WINDOW | 0x00000200, close_fds=True)
         return
+    detached = 0x00000008 | 0x00000200 if os.name == "nt" else 0   # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
     subprocess.Popen(restart_command(), cwd=str(ROOT), creationflags=detached, close_fds=True)
