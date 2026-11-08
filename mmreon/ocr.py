@@ -144,7 +144,11 @@ def _column_lines(frame, anchor, col, whitelist=None) -> dict:
     g = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     scale = 3
     g = cv2.resize(g, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-    _, b = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    # Порог Оцу на почти чёрной таблице уходит слишком низко, и серый фон строки под курсором
+    # сливается с цифрами («15:57» читалось как «18:57»). Текст светлый (~190), фон подсветки ~30 —
+    # поэтому порог не ниже 100.
+    otsu, _ = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    _, b = cv2.threshold(g, max(otsu, 100), 255, cv2.THRESH_BINARY_INV)
     pad = 20
     b = cv2.copyMakeBorder(b, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=255)
     cfg = "--psm 6" + (f" -c tessedit_char_whitelist={whitelist}" if whitelist else "")
@@ -207,10 +211,12 @@ def _duration(text: str) -> int | None:
 
 
 def _datetime(text: str) -> datetime | None:
-    m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4})\D+(\d{1,2}):(\d{2})", text)
+    m = re.search(r"(\d{1,3})\.(\d{1,2})\.(\d{4})\D+(\d{1,2}):(\d{2})", text)
     if not m:
         return None
-    d, mo, y, h, mi = map(int, m.groups())
+    day_txt, mo, y, h, mi = m.group(1), *map(int, m.groups()[1:])
+    # У края столбца первая цифра иногда двоится: «77.11» вместо «7.11». Лишнее отбрасываем.
+    d = int(day_txt[-2:]) if 1 <= int(day_txt[-2:]) <= 31 else int(day_txt[-1])
     try:
         return datetime(y, mo, d, h, mi)
     except ValueError:

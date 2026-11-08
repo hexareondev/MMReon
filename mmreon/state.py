@@ -54,6 +54,8 @@ def is_rated(m: dict) -> bool:
 
 def _estimate(m: dict, typical: float) -> int:
     mag = round(typical * (2 if is_double(m) else 1))
+    if m.get("won") is None:
+        return 0                     # итог ещё неизвестен (вышли до финального экрана)
     return mag if m["won"] else -mag
 
 
@@ -241,7 +243,7 @@ def _goal(goal: dict | None, value: int | None, gain: float) -> dict | None:
 def _heroes(matches: list) -> list:
     stats = {}
     for m in matches:
-        if not is_rated(m) or not m.get("hero"):
+        if not is_rated(m) or not m.get("hero") or m.get("won") is None:
             continue
         h = stats.setdefault(m["hero"], {"code": m["hero"], "name": hero_name(m["hero"]), "games": 0,
                                          "wins": 0, "mmr": 0, "mmr_games": 0, "last": m["ended_at"]})
@@ -286,7 +288,7 @@ def build(tracker, dota_running: bool) -> dict:
     week_ago = now - timedelta(days=7)
     before_week = [h for h in history if _parse(h["at"]) <= week_ago]
     week_base = (before_week[-1] if before_week else (history[0] if history else None))
-    week_matches = [m for m in matches if _parse(m["ended_at"]) >= week_ago and is_rated(m)]
+    week_matches = [m for m in matches if _parse(m["ended_at"]) >= week_ago and is_rated(m) and m.get("won") is not None]
     week_wins = sum(1 for m in week_matches if m["won"])
 
     month_ago = now - timedelta(days=30)
@@ -307,7 +309,7 @@ def build(tracker, dota_running: bool) -> dict:
         "patterns": _patterns(matches),
         "session": {
             "wins": sum(1 for m in session if m["won"]),
-            "losses": sum(1 for m in session if not m["won"]),
+            "losses": sum(1 for m in session if m["won"] is False),
             "delta": s_exact,
             "estimate": s_est,
             "pending": len(pending),

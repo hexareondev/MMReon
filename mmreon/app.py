@@ -279,7 +279,7 @@ class App:
         if not self.notifications_enabled():
             return
         hero = hero_name(match.get("hero"))
-        result = "Победа" if match.get("won") else "Поражение"
+        result = "Победа" if match.get("won") else "Поражение"   # к этому моменту итог уже известен по рейтингу
         if match["status"] == "exact":
             delta = match["delta"]
             line = f"{'+' if delta > 0 else ''}{delta} · рейтинг {after}"

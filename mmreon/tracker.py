@@ -32,6 +32,37 @@ def _local_naive(iso: str) -> datetime:
     return datetime.fromisoformat(iso).astimezone().replace(tzinfo=None)
 
 
+def _same_match(m: dict, hero, won, duration, ended_est: datetime) -> bool:
+    """Тот же матч: герой, результат и длительность до 3 секунд, в пределах суток."""
+    if not hero or m.get("hero") != hero:
+        return False
+    if m.get("won") is not None and won is not None and m.get("won") != won:
+        return False
+    if duration is None or m.get("duration_sec") is None or abs(m["duration_sec"] - duration) > 3:
+        return False
+    return abs(_local_naive(m["ended_at"]) - ended_est) <= timedelta(days=1)
+
+
+def _ordered_rows(rows: list) -> list:
+    """Таблица «Истории» идёт от новых матчей к старым. Строки, чьё время ломает этот порядок,
+    прочитаны с ошибкой — оставляем самую длинную непротиворечивую последовательность."""
+    n = len(rows)
+    if n < 3:
+        return rows
+    best = [1] * n
+    prev = [-1] * n
+    for i in range(n):
+        for j in range(i):
+            if rows[j]["started"] >= rows[i]["started"] and best[j] + 1 > best[i]:
+                best[i], prev[i] = best[j] + 1, j
+    i = max(range(n), key=lambda k: best[k])
+    keep = set()
+    while i != -1:
+        keep.add(i)
+        i = prev[i]
+    return [r for k, r in enumerate(rows) if k in keep]
+
+
 def _items(payload: dict) -> dict:
     """Предметы из раздела items GSI: инвентарь, рюкзак, тайник, нейтральный."""
     raw = payload.get("items") or {}
@@ -92,6 +123,12 @@ class Tracker:
                         live["first_seen"][n] = clock
         if payload.get("hero"):
             live["hero"] = payload["hero"]
+        if payload.get("player"):
+            live["player"] = payload["player"]
+        game = payload.get("map") or {}
+        live["map"] = game
+        if game.get("win_team") in ("radiant", "dire"):
+            live["win_team"] = game["win_team"]      # трон уже пал, финальный экран ещё не показан
         lh = (payload.get("player") or {}).get("last_hits")
         if live["lh10"] is None and clock is not None and clock >= 600 and lh is not None:
             live["lh10"] = lh
@@ -127,6 +164,7 @@ class Tracker:
         game = payload.get("map")
         if not game:
             self.in_match = False       # главное меню: в пакете нет раздела map
+            self._finish_left_match()
             return
         state = game.get("game_state", "")
         match_id = str(game.get("matchid") or "0")
@@ -141,40 +179,86 @@ class Tracker:
         win_team = game.get("win_team")
         if win_team not in ("radiant", "dire"):
             return
+        player = payload.get("player", {})
+        won = player.get("team_name") == win_team
         with self.store.lock:
-            if self.store.find(match_id):
+            existing = self.store.find(match_id)
+            if existing and not existing.get("partial"):
                 return
-            player = payload.get("player", {})
-            hero = payload.get("hero", {})
-            match = {
-                "match_id": match_id,
-                "ended_at": _now(),
-                "hero": (hero.get("name") or "").replace("npc_dota_hero_", ""),
-                "won": player.get("team_name") == win_team,
-                "kills": player.get("kills"),
-                "deaths": player.get("deaths"),
-                "assists": player.get("assists"),
-                "last_hits": player.get("last_hits"),
-                "denies": player.get("denies"),
-                "gpm": player.get("gold_per_minute"),
-                "xpm": player.get("xp_per_minute"),
-                "duration_sec": game.get("clock_time"),
-                "status": "pending",
-                "delta": None,
-                "rating_before": None,
-                "rating_after": None,
-                "confidence": None,
-                "double": None,
-                "mode": None,
-            }
-            match.update(self._build_details(match_id, payload))
-            self.store.matches.append(match)
+            if existing:
+                # Матч уже записан при выходе в лобби (например, после переподключения) — дополняем.
+                fresh = self._match_record(match_id, payload, won)
+                for k, v in fresh.items():
+                    if k not in ("status", "delta", "rating_before", "rating_after", "confidence", "double",
+                                 "mode", "ended_at", "history_key", "started_at") and v is not None:
+                        existing[k] = v
+                existing.pop("partial", None)
+                match = existing
+            else:
+                match = self._match_record(match_id, payload, won)
+                self.store.matches.append(match)
             self.store.save()
         self._live = None
         result = "Победа" if match["won"] else "Поражение"
         self.log(f"[матч] {match_id}: {result}, {match['hero']} "
                  f"{match['kills']}/{match['deaths']}/{match['assists']} — "
                  f"откройте «Профиль → История», чтобы записать точный рейтинг")
+
+    def _match_record(self, match_id: str, payload: dict, won) -> dict:
+        player = payload.get("player") or {}
+        hero = payload.get("hero") or {}
+        game = payload.get("map") or {}
+        match = {
+            "match_id": match_id,
+            "ended_at": _now(),
+            "hero": (hero.get("name") or "").replace("npc_dota_hero_", ""),
+            "won": won,
+            "kills": player.get("kills"),
+            "deaths": player.get("deaths"),
+            "assists": player.get("assists"),
+            "last_hits": player.get("last_hits"),
+            "denies": player.get("denies"),
+            "gpm": player.get("gold_per_minute"),
+            "xpm": player.get("xp_per_minute"),
+            "duration_sec": game.get("clock_time"),
+            "status": "pending",
+            "delta": None,
+            "rating_before": None,
+            "rating_after": None,
+            "confidence": None,
+            "double": None,
+            "mode": None,
+        }
+        match.update(self._build_details(match_id, payload))
+        return match
+
+    def _finish_left_match(self):
+        """Вышли в лобби, не дождавшись финального экрана: записываем матч из данных, собранных по ходу игры.
+        Результат известен, если трон уже пал; иначе его подскажет изменение рейтинга или «История»."""
+        live, self._live = self._live, None
+        if not live or not live.get("player") or not live.get("hero"):
+            return
+        game = live.get("map") or {}
+        if (game.get("clock_time") or 0) <= 0:
+            return                      # игра не началась (вышли на драфте) — матча нет
+        match_id = live["match_id"]
+        player = live["player"]
+        won = player.get("team_name") == live["win_team"] if live.get("win_team") else None
+        payload = {"player": player, "hero": live["hero"], "map": game}
+        self._live = live               # нужен _build_details для предметов и таймингов
+        try:
+            with self.store.lock:
+                if self.store.find(match_id):
+                    return
+                match = self._match_record(match_id, payload, won)
+                match["partial"] = True     # если Дота всё же пришлёт финальный экран — дополним
+                self.store.matches.append(match)
+                self.store.save()
+        finally:
+            self._live = None
+        result = {True: "победа", False: "поражение", None: "итог пока неизвестен"}[won]
+        self.log(f"[матч] {match_id}: вышли до финального экрана, {result}, {match['hero']} "
+                 f"{match['kills']}/{match['deaths']}/{match['assists']}")
 
     # ---------- распознавание ----------
 
@@ -233,9 +317,11 @@ class Tracker:
         """Тип игры для записанных матчей и матчи, сыгранные без трекера."""
         if not rows:
             return
+        rows = _ordered_rows(rows)
         added = typed = 0
         with self.store.lock:
             matches = self.store.matches
+            removed = self._dedupe_history()
             for row in rows:
                 if row["won"] is None:
                     continue
@@ -255,10 +341,23 @@ class Tracker:
                     changed = best.get("history_key") != key or best.get("mode") != row["mode"]
                     best["history_key"] = key
                     best["mode"] = row["mode"]
+                    if best.get("won") is None:
+                        best["won"] = row["won"]
+                        changed = True
                     best.setdefault("started_at", started.astimezone().isoformat(timespec="seconds"))
                     if best["status"] == "pending" and row["mode"] == "turbo":
                         best["status"] = "unrated"     # турбо рейтинг не меняет — не ждём цифру
                     typed += changed
+                    continue
+
+                # Время могло прочитаться с ошибкой (например, на подсвеченной курсором строке),
+                # но герой, результат и длительность до секунды совпадают — это тот же матч.
+                twin = next((m for m in matches if _same_match(m, row["hero"], row["won"], row["duration_sec"], ended_est)), None)
+                if twin is not None:
+                    if not twin.get("history_key"):
+                        twin["history_key"] = key
+                        twin["mode"] = row["mode"]
+                        typed += 1
                     continue
 
                 # Матч, которого нет в журнале: трекер был выключен или это игра до установки.
@@ -276,11 +375,40 @@ class Tracker:
                     "delta": None,
                 })
                 added += 1
-            if added or typed:
+            if added or typed or removed:
                 matches.sort(key=lambda m: _local_naive(m["ended_at"]))
                 self.store.save()
         if added:
             self.log(f"[история] добавлено матчей из «Истории»: {added}")
+
+    def _dedupe_history(self) -> int:
+        """Убирает матчи «из Истории», которые дублируют уже записанный матч
+        (так бывало, когда время в таблице прочиталось с ошибкой)."""
+        matches = self.store.matches
+        drop = []
+        for i, m in enumerate(matches):
+            if m.get("source") != "history":
+                continue
+            for j, other in enumerate(matches):
+                if i == j or j in drop:
+                    continue
+                # Сохраняем записанный трекером матч; из двух дублей «из Истории» — более ранний в списке.
+                if other.get("source") == "history" and j > i:
+                    continue
+                if _same_match(other, m.get("hero"), m.get("won"), m.get("duration_sec"), _local_naive(m["ended_at"])):
+                    drop.append(i)
+                    break
+        for i in reversed(drop):
+            del matches[i]
+        if drop:
+            self.log(f"[история] убраны дубли матчей: {len(drop)}")
+        return len(drop)
+
+    def cleanup(self):
+        """Однократная чистка журнала при запуске."""
+        with self.store.lock:
+            if self._dedupe_history():
+                self.store.save()
 
     def accept(self, rating: int, confidence: int | None):
         with self.store.lock:
@@ -312,13 +440,15 @@ class Tracker:
                 if delta == 0:
                     m["status"] = "unrated"
                     self.log(f"[рейтинг] {m['match_id']}: рейтинг не изменился — нерейтинговая игра")
-                elif abs(delta) > self.cfg["max_delta"] or (delta > 0) != m["won"]:
+                elif abs(delta) > self.cfg["max_delta"] or (m["won"] is not None and (delta > 0) != m["won"]):
                     if history and history[-1]["value"] == rating:
                         history.pop()
                     self.log(f"[рейтинг] прочитано {rating}, изменение {_fmt(delta)} не сходится "
                              f"с результатом матча — не записываю, проверю ещё раз")
                     return
                 else:
+                    if m["won"] is None:
+                        m["won"] = delta > 0       # итог не дошёл из Доты — рейтинг его однозначно показывает
                     self._fill(m, prev["value"], rating, confidence)
                     self.log(f"[рейтинг] {m['match_id']}: {prev['value']} → {rating} — ИР {_fmt(delta)}"
                              + (" (похоже на жетон ×2)" if m["double"] else "") + self._conf(confidence))

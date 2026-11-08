@@ -86,6 +86,7 @@
   .edge { align-self: stretch; border-radius: 0 3px 3px 0; }
   .edge.w { background: var(--radiant); }
   .edge.l { background: var(--dire); }
+  .edge.u { background: #4A5060; }
   .portrait { width: 92px; height: 52px; border-radius: 8px; overflow: hidden; background: var(--stone-2); display: grid; place-items: center;
     font-family: var(--display); font-weight: 700; color: var(--text-2); }
   .portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -405,10 +406,10 @@ function forecastHTML(f, m) {
 
 function chipHTML(m) {
   const x2 = m.double ? '<span class="x2">×2</span>' : "";
-  const title = `${esc(m.hero)}, ${m.won ? "победа" : "поражение"}`;
-  const wl = m.won ? "П" : "Пр";
+  const title = `${esc(m.hero)}, ${m.won == null ? "итог неизвестен" : m.won ? "победа" : "поражение"}`;
+  const wl = m.won == null ? "?" : m.won ? "П" : "Пр";
   if (m.status === "exact") return `<div class="chip ${m.delta >= 0 ? "w" : "l"}" title="${title}">${sign(m.delta)}${x2}</div>`;
-  if (m.status === "pending") return `<div class="chip p" title="${title}, ждёт «Истории»">≈${sign(m.estimate)}${x2}</div>`;
+  if (m.status === "pending") return `<div class="chip p" title="${title}, ждёт «Истории»">${m.won == null ? "?" : "≈" + sign(m.estimate)}${x2}</div>`;
   if (m.status === "group") return `<div class="chip ${m.won ? "w" : "l"}" title="${title}, известна только сумма">${wl}${x2}</div>`;
   if (m.status === "history" && m.mode === "ranked")
     return `<div class="chip ${m.won ? "w" : "l"} h" title="${title}, из «Истории», без точного изменения">${wl}</div>`;
@@ -504,7 +505,7 @@ function deltaCell(m) {
   if (m.status === "exact")
     return `<div class="bar" aria-hidden="true"><i class="${m.delta >= 0 ? "w" : "l"}" style="width:${scale(m.delta)}%"></i></div><span class="dv ${tone(m.delta)}">${sign(m.delta)}</span>`;
   if (m.status === "pending")
-    return `<span class="tag p">ждёт «Истории»</span><span class="dv est">≈${sign(m.estimate)}</span>`;
+    return `<span class="tag p">ждёт «Истории»</span><span class="dv est">${m.won == null ? "?" : "≈" + sign(m.estimate)}</span>`;
   if (m.status === "group")
     return `<span class="tag n" title="Несколько матчей подряд без открытия «Истории»">сумма нескольких матчей</span><span class="dv ${tone(m.group_delta)}">${sign(m.group_delta)}</span>`;
   if (m.status === "unrated") return `<span class="tag n">без рейтинга</span>`;
@@ -602,7 +603,7 @@ function renderMatches(all) {
     return;
   }
   box.innerHTML = list.map(m => {
-    const res = m.won ? "w" : "l";
+    const res = m.won == null ? "u" : m.won ? "w" : "l";
     const x2title = m.double_manual === null ? (m.double ? "Определено автоматически. Нажмите, чтобы изменить" : "Нажмите, если применяли жетон")
                                              : "Отмечено вручную. Нажмите, чтобы изменить";
     const x2 = (m.status === "unrated" || m.status === "history") ? "" :
@@ -619,7 +620,7 @@ function renderMatches(all) {
           <div class="name">${esc(m.hero)}${mode}</div>
           <div class="when">${when(m.started_at || m.ended_at)}${m.duration_sec != null ? ", " + dur(m.duration_sec) : ""}<span class="chev" aria-hidden="true"></span></div>
         </button>
-        <div class="result ${m.won ? "win" : "loss"}">${m.won ? "Победа" : "Поражение"}</div>
+        <div class="result ${m.won == null ? "muted" : m.won ? "win" : "loss"}" ${m.won == null ? 'title="Вышли до финального экрана. Итог появится, когда изменится рейтинг или матч появится в «Истории»"' : ""}>${m.won == null ? "Итог неизвестен" : m.won ? "Победа" : "Поражение"}</div>
         <div class="kda">${kda}</div>
         <div>${x2}</div>
         <div class="delta">${deltaCell(m)}</div>

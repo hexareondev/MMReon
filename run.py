@@ -82,6 +82,7 @@ def main():
     server = open_server(cfg, tracker, on_command, hidden)
 
     log("MMReon запущен. " + tracker.summary())
+    tracker.cleanup()
     for note in (gsi_install.auto_install(cfg), gsi_install.ensure_current(cfg)):
         if note:
             log(note)
