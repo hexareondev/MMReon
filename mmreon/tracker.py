@@ -36,13 +36,33 @@ def _same_duration(m: dict, duration, tolerance: int = 5) -> bool:
     return duration is not None and m.get("duration_sec") is not None and abs(m["duration_sec"] - duration) <= tolerance
 
 
-def _same_match(m: dict, hero, won, duration, ended_est: datetime) -> bool:
-    """Тот же матч: герой, результат и длительность до 3 секунд, в пределах суток.
-    Неизвестный герой (матч из Dota Plus) не мешает — решает длительность."""
+SAME_START = timedelta(minutes=2)
+
+
+def _start_est(m: dict) -> datetime | None:
+    """Начало матча: из таблицы, а у записанных трекером — окончание минус длительность."""
+    if m.get("started_at"):
+        return _local_naive(m["started_at"])
+    if m.get("duration_sec") is not None:
+        return _local_naive(m["ended_at"]) - timedelta(seconds=m["duration_sec"])
+    return None
+
+
+def _same_start(m: dict, started: datetime | None) -> bool:
+    s = _start_est(m)
+    return s is not None and started is not None and abs(s - started) <= SAME_START
+
+
+def _same_match(m: dict, hero, won, duration, ended_est: datetime, started: datetime | None = None) -> bool:
+    """Тот же матч: герой и результат совпадают, и либо начало в пределах 2 минут
+    (два матча в одну минуту не начинаются), либо длительность до 3 секунд в пределах суток.
+    Неизвестный герой (матч из Dota Plus) не мешает."""
     if hero and m.get("hero") and m.get("hero") != hero:
         return False
     if m.get("won") is not None and won is not None and m.get("won") != won:
         return False
+    if _same_start(m, started):
+        return True
     if duration is None or m.get("duration_sec") is None or abs(m["duration_sec"] - duration) > 3:
         return False
     return abs(_local_naive(m["ended_at"]) - ended_est) <= timedelta(days=1)
@@ -351,9 +371,11 @@ class Tracker:
                 for m in matches:
                     if m.get("history_key") not in (None, key):
                         continue
-                    if m.get("hero") != row["hero"] and not (m.get("hero") is None and _same_duration(m, row["duration_sec"])):
+                    same_start = _same_start(m, started)
+                    if m.get("hero") != row["hero"] and not (m.get("hero") is None and (same_start or _same_duration(m, row["duration_sec"]))):
                         continue
-                    gap = abs(_local_naive(m["ended_at"]) - ended_est)
+                    # Совпало начало — это тот же матч, даже если длительность прочиталась с ошибкой.
+                    gap = timedelta(0) if same_start else abs(_local_naive(m["ended_at"]) - ended_est)
                     if gap <= HISTORY_MATCH_WINDOW and (best_gap is None or gap < best_gap):
                         best, best_gap = m, gap
                 if best is not None:
@@ -374,7 +396,7 @@ class Tracker:
 
                 # Время могло прочитаться с ошибкой (например, на подсвеченной курсором строке),
                 # но герой, результат и длительность до секунды совпадают — это тот же матч.
-                twin = next((m for m in matches if _same_match(m, row["hero"], row["won"], row["duration_sec"], ended_est)), None)
+                twin = next((m for m in matches if _same_match(m, row["hero"], row["won"], row["duration_sec"], ended_est, started)), None)
                 if twin is not None:
                     if twin.get("hero") is None:
                         twin["hero"] = row["hero"]
@@ -488,7 +510,8 @@ class Tracker:
                 # Сохраняем записанный трекером матч; из двух дублей «из Истории» — более ранний в списке.
                 if other.get("source") in ("history", "dotaplus") and j > i:
                     continue
-                if _same_match(other, m.get("hero"), m.get("won"), m.get("duration_sec"), _local_naive(m["ended_at"])):
+                if _same_match(other, m.get("hero"), m.get("won"), m.get("duration_sec"), _local_naive(m["ended_at"]),
+                               _start_est(m)):
                     # Перед удалением переносим то, чего у оставшейся записи нет.
                     for k in ("hero", "history_key", "mode", "started_at", "kills", "deaths", "assists"):
                         if other.get(k) is None and m.get(k) is not None:

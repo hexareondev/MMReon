@@ -259,6 +259,34 @@ def _datetime(text: str) -> datetime | None:
         return None
 
 
+HOVER_STRIPS = ((-585, -445), (-263, -143))     # пустые промежутки между колонками «Истории»
+
+
+def _hovered_row(frame, anchor, strips, geo=HISTORY) -> int | None:
+    """Строка под курсором: игра подсвечивает её фон (~30 против 1–14 у соседних строк).
+    Текст на подсветке читается с ошибками («51:20» как «1:20», «15:57» как «18:57»),
+    поэтому такую строку пропускаем — она прочитается, когда курсор уйдёт."""
+    bg = []
+    for i in range(geo["rows"]):
+        vals = []
+        for col in strips:
+            cell = _row_cell(frame, anchor, i, col, geo)
+            if cell.size:
+                vals.append(float(np.median(cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY))))
+        bg.append(min(vals) if vals else None)
+    best, best_lift = None, 0.0
+    for i, v in enumerate(bg):
+        if v is None:
+            continue
+        near = [bg[j] for j in (i - 1, i + 1) if 0 <= j < len(bg) and bg[j] is not None]
+        if not near:
+            continue
+        lift = v - max(near)
+        if lift > best_lift:
+            best, best_lift = i, lift
+    return best if best_lift >= 15 else None
+
+
 def table_signature(frame, anchor) -> bytes:
     """Короткий отпечаток таблицы: меняется, когда в ней что-то поменялось."""
     crop, _ = _column(frame, anchor, (COL_HERO[0], COL_TYPE[1]))
@@ -271,8 +299,11 @@ def read_history(frame, anchor) -> list[dict]:
     heroes_txt = _column_lines(frame, anchor, COL_HERO)
     dt_txt = _column_lines(frame, anchor, COL_DATETIME, "0123456789.:")
     dur_txt = _column_lines(frame, anchor, COL_DURATION, "0123456789:")
+    hovered = _hovered_row(frame, anchor, HOVER_STRIPS)
     rows = []
     for i in range(ROWS):
+        if i == hovered:
+            continue
         started = _datetime(dt_txt.get(i, ""))
         hero = heroes.code_from_text(heroes_txt.get(i, ""))
         if not started or not hero:
@@ -300,6 +331,7 @@ DP_DURATION = (-429, -344)
 DP_KDA = (-332, -234)
 DP_DELTA = (246, 316)           # ИР: «-20», «26», «0»
 DP_HEADER_AT = (-508, 41)       # заголовки «РЗЛТ  ДЛИТ» относительно подписи «Рейтинг»
+DP_HOVER_STRIPS = ((-200, -60), (60, 200))
 
 _dp_header = cv2.imread(str(ASSETS_DIR / "dotaplus_header.png"), cv2.IMREAD_GRAYSCALE)
 
@@ -392,8 +424,11 @@ def read_dotaplus(frame, anchor) -> list[dict]:
     dur_txt = _column_lines(frame, anchor, DP_DURATION, "0123456789:", DOTAPLUS)
     kda = _read_kda(frame, anchor)
     delta_txt = _column_lines(frame, anchor, DP_DELTA, "0123456789-", DOTAPLUS)
+    hovered = _hovered_row(frame, anchor, DP_HOVER_STRIPS, DOTAPLUS)
     rows = []
     for i in range(DOTAPLUS["rows"]):
+        if i == hovered:
+            continue
         started = _datetime(dt_txt.get(i, ""))
         duration = _duration(dur_txt.get(i, ""))
         if not started or duration is None:
