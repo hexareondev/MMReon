@@ -424,6 +424,7 @@ class Tracker:
                 added += 1
             if added or typed or removed:
                 matches.sort(key=lambda m: _local_naive(m["ended_at"]))
+                self._reconcile()
                 self.store.save()
         if added:
             self.log(f"[история] добавлено матчей из «Истории»: {added}")
@@ -464,7 +465,14 @@ class Tracker:
                         if best.get(k) is None and v is not None:
                             best[k] = v
                             changed = True
-                    if delta is not None and best["status"] in ("history", "group"):
+                    if (delta is not None and best["status"] == "exact" and best.get("delta_source") != "dotaplus"
+                            and best.get("delta") != delta):
+                        # Цифра трекера могла включить пропущенный матч — Dota Plus знает точно.
+                        best.setdefault("tracker_delta", best.get("delta"))
+                        best.update(delta=delta, delta_source="dotaplus",
+                                    double=abs(delta) >= typical * DOUBLE_FACTOR)
+                        changed = True
+                    elif delta is not None and best["status"] in ("history", "group"):
                         best.update(status="exact", delta=delta, delta_source="dotaplus",
                                     double=abs(delta) >= typical * DOUBLE_FACTOR)
                         if best.get("mode") is None:
@@ -492,6 +500,7 @@ class Tracker:
                 added += 1
             if filled or added:
                 matches.sort(key=lambda m: _local_naive(m["ended_at"]))
+                self._reconcile()
                 self.store.save()
         if filled or added:
             self.log(f"[Dota Plus] дополнено матчей: {filled}, добавлено новых: {added}")
@@ -529,8 +538,47 @@ class Tracker:
     def cleanup(self):
         """Однократная чистка журнала при запуске."""
         with self.store.lock:
-            if self._dedupe_history():
+            if self._dedupe_history() + self._reconcile():
                 self.store.save()
+
+    def _before_at(self, m: dict) -> datetime | None:
+        """Когда трекер видел «рейтинг до» этого матча. У старых записей — по журналу рейтинга."""
+        if m.get("rating_before_at"):
+            return _local_naive(m["rating_before_at"])
+        end = _local_naive(m["ended_at"])
+        seen = [_local_naive(h["at"]) for h in self.store.data.get("history", [])
+                if h["value"] == m["rating_before"] and _local_naive(h["at"]) < end]
+        return seen[-1] if seen else None
+
+    def _reconcile(self) -> int:
+        """Цифра трекера — разница между двумя чтениями рейтинга. Если между ними прошёл матч,
+        сыгранный без трекера, в разницу попали оба. Когда цифра пропущенного матча становится
+        известна (Dota Plus), вычитаем её — остаётся точное изменение за этот матч."""
+        matches = self.store.matches
+        typical, changed = self._typical(), 0
+        for m in matches:
+            if (m.get("status") != "exact" or m.get("delta_source") == "dotaplus"
+                    or m.get("rating_before") is None or m.get("rating_after") is None):
+                continue
+            since = self._before_at(m)
+            if since is None:
+                continue
+            end = _local_naive(m["ended_at"])
+            missed = [o for o in matches if o is not m and since < _local_naive(o["ended_at"]) < end
+                      and o.get("status") != "unrated" and o.get("mode") != "turbo"]
+            if not missed or any(o.get("status") != "exact" or o.get("delta") is None for o in missed):
+                continue                # пропущенных нет или их цифры пока неизвестны
+            delta = m["rating_after"] - m["rating_before"] - sum(o["delta"] for o in missed)
+            if delta == m["delta"] or delta == 0 or abs(delta) > self.cfg["max_delta"]:
+                continue
+            if m.get("won") is not None and (delta > 0) != m["won"]:
+                continue
+            m.setdefault("tracker_delta", m["delta"])
+            m.update(delta=delta, double=abs(delta) >= typical * DOUBLE_FACTOR)
+            changed += 1
+            self.log(f"[рейтинг] {m['match_id']}: в разницу {_fmt(m['tracker_delta'])} входил пропущенный матч "
+                     f"— за сам матч {_fmt(delta)}")
+        return changed
 
     def accept(self, rating: int, confidence: int | None):
         with self.store.lock:
@@ -572,6 +620,9 @@ class Tracker:
                     if m["won"] is None:
                         m["won"] = delta > 0       # итог не дошёл из Доты — рейтинг его однозначно показывает
                     self._fill(m, prev["value"], rating, confidence)
+                    m["rating_before_at"] = prev.get("read_at")
+                    if self._reconcile():
+                        delta = m["delta"]
                     self.log(f"[рейтинг] {m['match_id']}: {prev['value']} → {rating} — ИР {_fmt(delta)}"
                              + (" (похоже на жетон ×2)" if m["double"] else "") + self._conf(confidence))
             else:
