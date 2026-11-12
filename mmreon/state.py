@@ -276,10 +276,15 @@ def build(tracker, dota_running: bool) -> dict:
     session_all = _session(matches)
     session = [m for m in session_all if is_rated(m)]
     s_exact = sum(m["delta"] for m in session if m["status"] == "exact")
+    # «Сумма нескольких матчей»: часть из них могла получить точную цифру из Dota Plus —
+    # её уже посчитали выше, поэтому от суммы группы берём только остаток.
     groups = {}
     for m in session:
         if m["status"] == "group":
             groups[m.get("rating_after")] = m.get("group_delta") or 0
+    for key in groups:
+        groups[key] -= sum(m["delta"] for m in matches if m["status"] == "exact"
+                           and m.get("group_delta") is not None and m.get("rating_after") == key)
     s_exact += sum(groups.values())
     pending = [m for m in session if m["status"] == "pending"]
     s_est = sum(_estimate(m, typical) for m in pending)

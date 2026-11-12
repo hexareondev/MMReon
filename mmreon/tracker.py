@@ -32,15 +32,26 @@ def _local_naive(iso: str) -> datetime:
     return datetime.fromisoformat(iso).astimezone().replace(tzinfo=None)
 
 
+def _same_duration(m: dict, duration, tolerance: int = 5) -> bool:
+    return duration is not None and m.get("duration_sec") is not None and abs(m["duration_sec"] - duration) <= tolerance
+
+
 def _same_match(m: dict, hero, won, duration, ended_est: datetime) -> bool:
-    """Тот же матч: герой, результат и длительность до 3 секунд, в пределах суток."""
-    if not hero or m.get("hero") != hero:
+    """Тот же матч: герой, результат и длительность до 3 секунд, в пределах суток.
+    Неизвестный герой (матч из Dota Plus) не мешает — решает длительность."""
+    if hero and m.get("hero") and m.get("hero") != hero:
         return False
     if m.get("won") is not None and won is not None and m.get("won") != won:
         return False
     if duration is None or m.get("duration_sec") is None or abs(m["duration_sec"] - duration) > 3:
         return False
     return abs(_local_naive(m["ended_at"]) - ended_est) <= timedelta(days=1)
+
+
+def _mostly_ordered(rows: list) -> bool:
+    """Таблицу можно отсортировать по другой колонке — тогда проверку порядка не применяем."""
+    pairs = list(zip(rows, rows[1:]))
+    return not pairs or sum(a["started"] >= b["started"] for a, b in pairs) >= 0.8 * len(pairs)
 
 
 def _ordered_rows(rows: list) -> list:
@@ -288,10 +299,16 @@ class Tracker:
         frame, anchor = loc
 
         # Таблицу сверяем, когда она изменилась и не меняется два кадра подряд (дорисовалась).
-        sig = ocr.table_signature(frame, anchor)
+        # Подпись «Рейтинг» общая для «Истории» и «Боевой статистики → Игры» (Dota Plus).
+        kind = ocr.table_kind(frame, anchor)
+        sig = kind.encode() + (ocr.dotaplus_signature(frame, anchor) if kind == "dotaplus"
+                               else ocr.table_signature(frame, anchor))
         if sig == self._sig_seen and sig != self._sig_synced:
             try:
-                self.sync_history(ocr.read_history(frame, anchor))
+                if kind == "dotaplus":
+                    self.sync_dotaplus(ocr.read_dotaplus(frame, anchor))
+                else:
+                    self.sync_history(ocr.read_history(frame, anchor))
             finally:
                 self._sig_synced = sig
         self._sig_seen = sig
@@ -332,7 +349,9 @@ class Tracker:
                 # Свой матч: тот же герой и время окончания рядом с расчётным.
                 best, best_gap = None, None
                 for m in matches:
-                    if m.get("hero") != row["hero"] or m.get("history_key") not in (None, key):
+                    if m.get("history_key") not in (None, key):
+                        continue
+                    if m.get("hero") != row["hero"] and not (m.get("hero") is None and _same_duration(m, row["duration_sec"])):
                         continue
                     gap = abs(_local_naive(m["ended_at"]) - ended_est)
                     if gap <= HISTORY_MATCH_WINDOW and (best_gap is None or gap < best_gap):
@@ -341,6 +360,9 @@ class Tracker:
                     changed = best.get("history_key") != key or best.get("mode") != row["mode"]
                     best["history_key"] = key
                     best["mode"] = row["mode"]
+                    if best.get("hero") is None:
+                        best["hero"] = row["hero"]       # героя знает только «История»
+                        changed = True
                     if best.get("won") is None:
                         best["won"] = row["won"]
                         changed = True
@@ -354,6 +376,9 @@ class Tracker:
                 # но герой, результат и длительность до секунды совпадают — это тот же матч.
                 twin = next((m for m in matches if _same_match(m, row["hero"], row["won"], row["duration_sec"], ended_est)), None)
                 if twin is not None:
+                    if twin.get("hero") is None:
+                        twin["hero"] = row["hero"]
+                        typed += 1
                     if not twin.get("history_key"):
                         twin["history_key"] = key
                         twin["mode"] = row["mode"]
@@ -381,21 +406,95 @@ class Tracker:
         if added:
             self.log(f"[история] добавлено матчей из «Истории»: {added}")
 
+    def sync_dotaplus(self, rows: list) -> None:
+        """«Боевая статистика → Игры» (Dota Plus): точное изменение рейтинга для матчей, где его не было
+        («из Истории», «сумма нескольких матчей»), и матчи, которых в журнале нет совсем."""
+        if not rows:
+            return
+        rows = _ordered_rows(rows) if _mostly_ordered(rows) else rows
+        filled = added = 0
+        with self.store.lock:
+            matches = self.store.matches
+            typical = self._typical()
+            for row in rows:
+                started, dur = row["started"], row["duration_sec"]
+                ended_est = started + timedelta(seconds=dur)
+                delta = row["delta"] if row["delta"] else None     # 0 — Dota Plus ещё не посчитала или игра без рейтинга
+                best, best_gap = None, None
+                for m in matches:
+                    if m.get("won") is not None and row["won"] is not None and m["won"] != row["won"]:
+                        continue
+                    if m.get("duration_sec") is not None and not _same_duration(m, dur):
+                        continue
+                    if m.get("started_at"):
+                        gap = abs(_local_naive(m["started_at"]) - started)
+                        ok = gap <= timedelta(minutes=3)
+                    else:
+                        gap = abs(_local_naive(m["ended_at"]) - ended_est)
+                        ok = gap <= HISTORY_MATCH_WINDOW
+                    if ok and (best_gap is None or gap < best_gap):
+                        best, best_gap = m, gap
+                if best is not None:
+                    changed = False
+                    for k, v in (("won", row["won"]), ("kills", row["kills"]), ("deaths", row["deaths"]),
+                                 ("assists", row["assists"]), ("duration_sec", dur),
+                                 ("started_at", started.astimezone().isoformat(timespec="seconds"))):
+                        if best.get(k) is None and v is not None:
+                            best[k] = v
+                            changed = True
+                    if delta is not None and best["status"] in ("history", "group"):
+                        best.update(status="exact", delta=delta, delta_source="dotaplus",
+                                    double=abs(delta) >= typical * DOUBLE_FACTOR)
+                        if best.get("mode") is None:
+                            best["mode"] = "ranked"
+                        changed = True
+                    filled += changed
+                    continue
+                if row["won"] is None:
+                    continue
+                matches.append({
+                    "match_id": f"dp-{started:%Y%m%d%H%M}",
+                    "source": "dotaplus",
+                    "started_at": started.astimezone().isoformat(timespec="seconds"),
+                    "ended_at": ended_est.astimezone().isoformat(timespec="seconds"),
+                    "hero": None,                   # героя подскажет «История»
+                    "won": row["won"],
+                    "kills": row["kills"], "deaths": row["deaths"], "assists": row["assists"],
+                    "duration_sec": dur,
+                    "mode": "ranked" if delta is not None else None,
+                    "status": "exact" if delta is not None else "history",
+                    "delta": delta,
+                    "delta_source": "dotaplus" if delta is not None else None,
+                    "double": delta is not None and abs(delta) >= typical * DOUBLE_FACTOR,
+                })
+                added += 1
+            if filled or added:
+                matches.sort(key=lambda m: _local_naive(m["ended_at"]))
+                self.store.save()
+        if filled or added:
+            self.log(f"[Dota Plus] дополнено матчей: {filled}, добавлено новых: {added}")
+
     def _dedupe_history(self) -> int:
         """Убирает матчи «из Истории», которые дублируют уже записанный матч
         (так бывало, когда время в таблице прочиталось с ошибкой)."""
         matches = self.store.matches
         drop = []
         for i, m in enumerate(matches):
-            if m.get("source") != "history":
+            if m.get("source") not in ("history", "dotaplus"):
                 continue
             for j, other in enumerate(matches):
                 if i == j or j in drop:
                     continue
                 # Сохраняем записанный трекером матч; из двух дублей «из Истории» — более ранний в списке.
-                if other.get("source") == "history" and j > i:
+                if other.get("source") in ("history", "dotaplus") and j > i:
                     continue
                 if _same_match(other, m.get("hero"), m.get("won"), m.get("duration_sec"), _local_naive(m["ended_at"])):
+                    # Перед удалением переносим то, чего у оставшейся записи нет.
+                    for k in ("hero", "history_key", "mode", "started_at", "kills", "deaths", "assists"):
+                        if other.get(k) is None and m.get(k) is not None:
+                            other[k] = m[k]
+                    if other.get("status") in ("history", "group") and m.get("status") == "exact":
+                        other.update(status="exact", delta=m["delta"], delta_source=m.get("delta_source"))
                     drop.append(i)
                     break
         for i in reversed(drop):
